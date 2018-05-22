@@ -2,4 +2,6 @@
 *Release/
 *opencv_build/
 *.DS_STORE
+ipch/
+*.sdf
 *~
