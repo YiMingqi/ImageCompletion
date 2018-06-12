@@ -9,12 +9,13 @@ Mat3b img;
 Mat1b mask;
 Mat3b result;
 Mat3b result_copy;
-vector<Point> PointsList;
+vector<vector<Point>> PointsList;
 Point prev_pt(-1,-1);
-vector<Point> mousepoints;
-int blocksize=10;
+vector<vector<Point>> mousepoints;
+vector<Point> curvePoints;
+int blocksize=20;
 int samplestep=2;
-bool iscurve=false;
+bool iscurve=true;
 ofstream file;
 void onmouse(int event,int x,int y,int flags,void* parm)
 {
@@ -28,10 +29,12 @@ void onmouse(int event,int x,int y,int flags,void* parm)
 		points_i=(points_i+1)%2;
 		if (points[0].x!=-1&&points[1].x!=-1&&points_i==0)
 		{
-			result.copyTo(result_copy);
+			// result.copyTo(result_copy);
 			file<<points[0]<<"  "<<points[1]<<endl;
-			LineInterpolation(points,PointsList);
-			DrawPoints(PointsList,result_copy,Scalar(255,0,255),1);//×ÏÉ«
+			vector<Point> line;
+			LineInterpolation(points, line);
+			PointsList.push_back(line);
+			DrawPoints(line, result_copy, Scalar(255, 0, 255), 1);//×ÏÉ«
 			circle(result_copy,points[0],3,Scalar(255,0,0),CV_FILLED);//À¶É«
 			circle(result_copy,points[1],3,Scalar(255,0,0),CV_FILLED);
 			// rectangle(result_copy,RectByCenter(PointsList[0],blocksize),CV_RGB(255,0,0),2);
@@ -40,18 +43,21 @@ void onmouse(int event,int x,int y,int flags,void* parm)
 	}
 	else
 	{
-		if( event == CV_EVENT_LBUTTONUP)// || !(flags & CV_EVENT_FLAG_LBUTTON) )
-			prev_pt = cvPoint(-1,-1);
+		if (event == CV_EVENT_LBUTTONUP) {
+			prev_pt = cvPoint(-1, -1);
+			mousepoints.push_back(curvePoints);
+			curvePoints = vector<Point>();
+		}
 		if( event == CV_EVENT_LBUTTONDOWN )
 		{
 			prev_pt = cvPoint(x,y);
 			// rectangle(result_copy,RectByCenter(prev_pt,blocksize),CV_RGB(255,0,0),2);
-			mousepoints.push_back(prev_pt);
+			curvePoints.push_back(prev_pt);
 		}
 		else if( event == CV_EVENT_MOUSEMOVE && (flags & CV_EVENT_FLAG_LBUTTON) )
 		{
 			CvPoint pt = cvPoint(x,y);
-			mousepoints.push_back(pt);
+			curvePoints.push_back(pt);
 			if( prev_pt.x < 0 )
 				prev_pt = pt;
 			//cvLine( inpaint_mask, prev_pt, pt, cvScalarAll(255), 5, 8, 0 );
@@ -64,26 +70,50 @@ void onmouse(int event,int x,int y,int flags,void* parm)
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-	img=imread("img.jpg",1);
-	mask=imread("mask.bmp",0);
+	// img=imread("img.jpg",1);
+	// mask=imread("mask.bmp",0);
+
+
+	Mat img = Mat(400, 400, CV_8UC3);
+	for (int i = 0; i < 400; i++) {
+		for (int j = 0; j < 400; j++) {
+			img.at<Vec3b>(i, j) = Vec3b(255, 255, 255);
+		}
+	}
+	for (int i = 190; i < 210; i++) {
+		for (int j = 0; j < 400; j++) {
+			img.at<Vec3b>(i, j) = Vec3b(0, 0 , 255);
+		}
+	}
+	for (int i = 0; i < 400; i++) {
+		for (int j = 190; j < 210; j++) {
+			img.at<Vec3b>(i, j) = Vec3b(0, 0, 255);
+		}
+	}
+
+	for (int i = 100; i < 300 ; i++) {
+		for (int j = 100; j < 300; j++) {
+			img.at<Vec3b>(i, j) = Vec3b(0, 0, 0);
+		}
+	}
 
 	//img=imread("curve_test1.png",1);
 	//mask=imread("curve_test1.bmp",0);
 
-	threshold(mask,mask,125,255,CV_THRESH_BINARY_INV);
+	// threshold(mask,mask,125,255,CV_THRESH_BINARY_INV);
 	result.zeros(img.size());
 	img.copyTo(result,mask);
 	namedWindow("img");
-	namedWindow("mask");
+	//namedWindow("mask");
 	createTrackbar("BlockSize","img",&blocksize,50);
 	createTrackbar("SampleStep","img",&samplestep,20);
-	int iscurve_temp=0;
+	int iscurve_temp=true;
 	createTrackbar("iscurve","img",&iscurve_temp, 1);
 	setMouseCallback("img",onmouse);
 	imshow("img",result);
-	imshow("mask",mask);
-	//StructurePropagation SP;
-	//SP.SetParm(blocksize,samplestep,iscurve);
+	//imshow("mask",mask);
+	StructurePropagation SP;
+	SP.SetParm(blocksize,samplestep,iscurve);
 	Mat3b Local_Result_Copy(result.size());
 	result.copyTo(Local_Result_Copy);
 	result.copyTo(result_copy);
@@ -97,28 +127,43 @@ int _tmain(int argc, _TCHAR* argv[])
 		else if (c=='s')
 		{
 			file<<blocksize<<"   "<<samplestep<<endl;
-			/*if(iscurve)
-				Wang_GetCurve(mousepoints,PointsList);*/
-			//DrawPoints(PointsList,img,CV_RGB(255,0,0),1);
-			//SP.SetParm(blocksize,samplestep,iscurve);
-			//SP.Run(mask,img,PointsList,Local_Result_Copy);
+			if (iscurve) {
+				PointsList.resize(mousepoints.size());
+				for (int i = 0; i < mousepoints.size(); i++) {
+					Wang_GetCurve(mousepoints[i], PointsList[i]);
+				}
+			}
+			for (int i = 0; i < PointsList.size(); i++) {
+				DrawPoints(PointsList[i], img, CV_RGB(255, 0, 0), 1);
+			}
+			SP.SetParm(blocksize,samplestep,iscurve);
+			SP.Run(mask,result,PointsList,Local_Result_Copy);
 			imshow("img",Local_Result_Copy);
+			result.copyTo(result_copy);
+			PointsList.clear();
+			mousepoints.clear();
 		}
 		else if (c=='r')
 		{
+			// clear lines
 			result.copyTo(result_copy);
 			result.copyTo(Local_Result_Copy);
+			PointsList.clear();
 			mousepoints.clear();
 			imshow("img",result_copy);
 		}
 		else if (c=='a')
 		{
+			// save results
 			imwrite("result.jpg",Local_Result_Copy);
 		}
 		else if(c=='e')
 		{
-			//Wang_GetCurve(mousepoints,PointsList);
-			DrawPoints(PointsList,result_copy,CV_RGB(255,0,0),1);
+			PointsList.resize(mousepoints.size());
+			for (int i = 0; i < mousepoints.size(); i++) {
+				Wang_GetCurve(mousepoints[i], PointsList[i]);
+				DrawPoints(PointsList[i], result_copy, CV_RGB(255, 0, 0), 1);
+			}
 			imshow("img",result_copy);
 		}
 	}
