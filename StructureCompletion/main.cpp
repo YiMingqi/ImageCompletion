@@ -97,6 +97,13 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 	}
 
+	list<int> tmp;
+	tmp.push_front(1);
+	list<int>::iterator itor = tmp.begin();
+	tmp.push_front(2);
+	tmp.erase(itor);
+	cout << *tmp.begin();
+
 	//img=imread("curve_test1.png",1);
 	//mask=imread("curve_test1.bmp",0);
 
@@ -118,6 +125,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	result.copyTo(Local_Result_Copy);
 	result.copyTo(result_copy);
 	//file.open("test.txt");
+
 	for (;;)
 	{
 		iscurve=iscurve_temp;

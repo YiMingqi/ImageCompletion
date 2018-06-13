@@ -1,4 +1,6 @@
 #include "stdafx.h"
+#include <hash_map>
+#include <memory>
 
 class Endpoints {
 public:
@@ -11,8 +13,7 @@ class PointPos {
 public:
 	const int lineIndex;
 	const int pointIndex;
-	PointPos();
-	PointPos(int lineIndex, int pointIndex): lineIndex(lineIndex), pointIndex(pointIndex) {
+	PointPos(int lineIndex = -1, int pointIndex = -1): lineIndex(lineIndex), pointIndex(pointIndex) {
 	}
 };
 
@@ -20,7 +21,9 @@ class MElement {
 public:
 	double value;
 	int xi;
-	MElement();
+	MElement() {
+
+	}
 	MElement(double value, int xi) {
 		this->value = value;
 		this->xi = xi;
@@ -29,24 +32,48 @@ public:
 
 class Edge;
 class Node {
+private:
+	list<Edge> edges;
+	int edgeNum;
 public:
 	const PointPos p;
-	list<Edge> edges;
-	Node();
-	Node(PointPos p) : p(p) {
+	const ushort id;
+	static ushort totalNum;
+	Node(PointPos p) : p(p), id(totalNum++) {
+		edgeNum = 0;
+	}
+	void insertEdge(Edge *e) {
+		edges.push_front(*e);
+		edgeNum++;
+	}
+	void eraseEdge(list<Edge>::iterator itor) {
+		edges.erase(itor);
+		edges.push_back(*itor);
+		edgeNum--;
+	}
+	void getEdges(list<Edge> &edges) {
+		edges = this->edges;
+	}
+	int getEdgeNum() {
+		return edgeNum;
 	}
 };
 
 class Edge {
 public:
-	const list<Node>::iterator ni;
-	const list<Node>::iterator nj;
-	vector<MElement> Mij;
-	vector<MElement> Mji;
+	ushort ni;
+	ushort nj;
+	shared_ptr<MElement> Mij;
+	shared_ptr<MElement> Mji;
 
-	Edge(list<Node>::iterator ni, list<Node>::iterator nj, int size): ni(ni), nj(nj) {
-		Mij.resize(size);
-		Mji.resize(size);
+	Edge(ushort ni, ushort nj, int size): ni(ni), nj(nj) {
+		Mij = shared_ptr<MElement>((MElement*)malloc(size * sizeof(MElement)), free);
+		Mji = shared_ptr<MElement>((MElement*)malloc(size * sizeof(MElement)), free);
+	}
+
+	Edge(int size) {
+		Mij = shared_ptr<MElement>((MElement*)malloc(size * sizeof(MElement)), free);
+		Mji = shared_ptr<MElement>((MElement*)malloc(size * sizeof(MElement)), free);
 	}
 };
 
@@ -54,7 +81,7 @@ class PointManager {
 public:
 	PointManager() {
 	}
-	void reset(vector<vector<Point>> linePoints, const Mat1b &mask, int blockSize);
+	void reset(const vector<vector<Point>> &linePoints, const Mat1b &mask, int blockSize);
 	Point getPoint(PointPos p);
 	bool nearBoundary(PointPos p);
 	void getPointsinPatch(PointPos p, vector<Point> &ret);
@@ -75,7 +102,9 @@ private:
 	map<int, list<PointPos>> intersectingMap;
 	vector<list<Node>> nodeListBucket;
 	void constructMap();
+	vector<list<Node>::iterator> nodeList;
 
 	bool nearBoundary(const Point &p);
 	int calcHashValue(int x, int y);
+	Node *getBPNext();
 };
