@@ -42,8 +42,8 @@ public:
 	Node(PointPos p) : p(p), id(totalNum++) {
 		edgeNum = 0;
 	}
-	void insertEdge(Edge *e) {
-		edges.push_front(*e);
+	void insertEdge(const Edge &e) {
+		edges.push_front(e);
 		edgeNum++;
 	}
 	void eraseEdge(list<Edge>::iterator itor) {
@@ -91,6 +91,7 @@ public:
 	// void getAnchorPoints(vector<Point> &anchors);
 	// void getIntersection(vector<list<PointPos>> &intersections);
 	void constructBPMap(map<int, list<PointPos>> &intersectingMap);
+	Node *getBPNext();
 
 
 private:
@@ -106,5 +107,5 @@ private:
 
 	bool nearBoundary(const Point &p);
 	int calcHashValue(int x, int y);
-	Node *getBPNext();
+	void addNeighbor(Node &n, const PointPos &pos, const vector<vector<ushort>> &visitedMark, list<Node> &BFSstack);
 };
