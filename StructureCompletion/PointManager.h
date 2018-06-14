@@ -39,7 +39,7 @@ public:
 	const PointPos p;
 	const ushort id;
 	static ushort totalNum;
-	Node(PointPos p) : p(p), id(totalNum++) {
+	Node(PointPos p) : p(p), id(++totalNum) {
 		edgeNum = 0;
 	}
 	void insertEdge(const Edge &e) {

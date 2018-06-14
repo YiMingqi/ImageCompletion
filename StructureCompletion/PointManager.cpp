@@ -147,13 +147,19 @@ Point *PointManager::getLinePtr(int i, int *length) {
 	return &linePoints[endPoints.trueLineIndex][endPoints.startIndex];
 }
 
+struct {
+	Node node;
+	list<PointPos>::iterator itor;
+};
+
 void PointManager::constructBPMap(map<int, list<PointPos>> &intersectingMap) {
 	map<int, list<PointPos>>::iterator mapItor;
 	list<Node> BFSstack;
-	vector<vector<ushort>> visitedMark;
-	visitedMark.resize(linePoints.size());
+	vector<vector<ushort>> pointVisitedMarks;
+	pointVisitedMarks.resize(linePoints.size());
 	for (int i = 0; i < linePoints.size(); i++) {
-		visitedMark[i].resize(linePoints[i].size());
+		pointVisitedMarks[i].resize(linePoints[i].size());
+		memset(&(pointVisitedMarks[i][0]), 0, linePoints[i].size() * sizeof(ushort));
 	}
 	nodeListBucket.resize(4);
 	int total = 0;
@@ -161,27 +167,57 @@ void PointManager::constructBPMap(map<int, list<PointPos>> &intersectingMap) {
 		total += linePoints[i].size();
 	}
 	nodeList.reserve(total / blockSize);
+	nodeList.resize(1);
 
 	vector<Node> intersections;
 	for (mapItor = intersectingMap.begin(); mapItor != intersectingMap.end(); mapItor++) {
 		intersections.push_back(Node(*(mapItor->second.begin())));
+		//预着色,用于处理两个不同位置的交点patch重叠的情况
+		vector<ushort> marks = pointVisitedMarks[lineEnds[mapItor->second.begin()->lineIndex].trueLineIndex];
+		int beginIndex = mapItor->second.begin()->pointIndex;
+		for (int i = beginIndex - blockSize / 2 + 1; i < beginIndex + blockSize / 2; i++) {
+			marks[i] = Node::totalNum;
+		}
 		if (2 * mapItor->second.size() > nodeListBucket.size()) {
 			nodeListBucket.resize(2 * mapItor->second.size());
 		}
 	}
 	int i = 0;
+	//先用一个数组记录一下某条线段有没有被标记，没有被标记的线段从开头开始扩散，一直到结尾结束
+	int *lineVisitedMarks = (int*)malloc(lineEnds.size() * sizeof(int));
 	for (mapItor = intersectingMap.begin(); mapItor != intersectingMap.end(); mapItor++, i++) {
 		list<PointPos>::iterator listItor = mapItor->second.begin();
 		for (; listItor != mapItor->second.end(); listItor++) {
-			addNeighbor(intersections[i], *listItor, visitedMark, BFSstack);
+			addNeighbor(intersections[i], *listItor, pointVisitedMarks, BFSstack);
+			lineVisitedMarks[listItor->lineIndex] = 1;
 		}
 	}
 
 	while (BFSstack.size()) {
 		list<Node>::iterator itor = BFSstack.begin();
-		addNeighbor(*itor, itor->p, visitedMark, BFSstack);
+		addNeighbor(*itor, itor->p, pointVisitedMarks, BFSstack);
 		BFSstack.pop_front();
 	}
+
+	Edge edge(blockSize);
+	for (int i = 0; i < lineEnds.size(); i++) {
+		if (lineVisitedMarks[i] == 0) {
+			Endpoints endPoints = lineEnds[i];
+			vector<Point> points = linePoints[endPoints.trueLineIndex];
+			int endIndex = endPoints.endIndex - blockSize / 2;
+			for (int j = endPoints.startIndex; j < endIndex; j += blockSize / 2) {
+				Node tmpNode = Node(PointPos(i, j));
+				if (edge.ni >= 0) {
+					tmpNode.insertEdge(edge);
+				}
+				edge.ni = tmpNode.id;
+				edge.nj = tmpNode.id + 1;
+				tmpNode.insertEdge(edge);
+			}
+		}
+	}
+
+	free(lineVisitedMarks);
 
 }
 
@@ -192,42 +228,35 @@ void PointManager::addNeighbor(Node &n, const PointPos &pos, const vector<vector
 	int prePointIndex = pointIndex - blockSize / 2;
 	int nextPointIndex = pointIndex + blockSize / 2;
 	vector<ushort> marks = visitedMark[lineIndex];
-	if (prePointIndex >= endpoints.startIndex && marks[pointIndex - 1] != n.id) {
+	if (prePointIndex >= endpoints.startIndex) {
 		ushort preNodeId = marks[prePointIndex];
 		if (preNodeId && nodeList.size() > preNodeId) {
-			Edge tmpEdge = Edge(n.id, preNodeId, blockSize);
+			Edge tmpEdge(n.id, preNodeId, blockSize);
 			n.insertEdge(tmpEdge);
 			nodeList[preNodeId]->insertEdge(tmpEdge);
 		}
 		else {
-			for (int i = pointIndex; i >= prePointIndex; i--) {
+			BFSstack.push_back(Node(PointPos(lineIndex, prePointIndex)));
+			for (int i = pointIndex - 1; i >= prePointIndex; i--) {
 				marks[i] = Node::totalNum;
 			}
-			Node tmpNode = Node(PointPos(lineIndex, prePointIndex));
-			Edge tmpEdge = Edge(n.id, tmpNode.id, blockSize);
-			tmpNode.insertEdge(tmpEdge);
-			n.insertEdge(tmpEdge);
-			BFSstack.push_back(tmpNode);
 		}
 	}
-	if (nextPointIndex < endpoints.endIndex && marks[pointIndex + 1] != n.id) {
+	if (nextPointIndex < endpoints.endIndex) {
 		ushort nextNodeId = marks[nextPointIndex];
 		if (nextNodeId && nodeList.size() > nextNodeId) {
-			Edge tmpEdge = Edge(n.id, nextNodeId, blockSize);
+			Edge tmpEdge(n.id, nextNodeId, blockSize);
 			n.insertEdge(tmpEdge);
 			nodeList[nextNodeId]->insertEdge(tmpEdge);
 		}
 		else {
-			for (int i = pointIndex; i <= nextPointIndex; i++) {
+			BFSstack.push_back(Node(PointPos(lineIndex, nextPointIndex)));
+			for (int i = pointIndex + 1; i <= nextPointIndex; i++) {
 				marks[i] = Node::totalNum;
 			}
-			Node tmpNode = Node(PointPos(lineIndex, nextPointIndex));
-			Edge tmpEdge = Edge(n.id, tmpNode.id, blockSize);
-			tmpNode.insertEdge(tmpEdge);
-			n.insertEdge(tmpEdge);
-			BFSstack.push_back(tmpNode);
 		}
 	}
+	list<Node>::iterator itor;
 	int bucketEntry = n.getEdgeNum() - 1;
 	nodeListBucket[bucketEntry].push_front(n);
 	nodeList.push_back(nodeListBucket[bucketEntry].begin());
