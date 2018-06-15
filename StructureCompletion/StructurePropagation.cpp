@@ -50,7 +50,8 @@ int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<Point
 	unique_ptr<Node> n;
 	list<Node> reverseStack;
 	while (n = pointManager.getBPNext()) {
-		list<Edge> edges;
+		calcMij(*n, mat, samplePoints);
+		/*list<Edge> edges;
 		n->getEdges(edges);
 		list<Edge>::iterator edgeItor = edges.begin();
 		double **Mptr = edgeItor->getMbyFrom(n->id);
@@ -72,7 +73,7 @@ int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<Point
 			for (int i = 0; i < samplePoints.size(); i++) {
 				(*Mptr)[i] += (*tmpMptr)[i];
 			}
-		}
+		}*/
 		reverseStack.push_back(*n);
 	}
 
@@ -81,42 +82,15 @@ int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<Point
 	reverseStack.reverse();
 	list<Node>::iterator itor = reverseStack.begin();
 	for (; itor != reverseStack.end(); itor++) {
+		calcMij(*itor, mat, samplePoints);
 		list<Edge> edges;
 		n->getEdges(edges);
-		list<Edge>::iterator edgeItor = edges.begin();
-		for (; edgeItor != edges.end(); edgeItor++) {
-			double **Mptr = edgeItor->getMbyFrom(itor->id);
-			if (*Mptr == NULL) {
-				*Mptr = (double*)malloc(samplePoints.size() * sizeof(double));
-				for (int i = 0; i < samplePoints.size(); i++) {
-					double min = INT_MAX;
-					for (int j = 0; j < samplePoints.size(); j++) {
-						double tmp = ks * calcEs(n->p, samplePoints[j]) +
-							ki * calcEi(mat, n->p, samplePoints[j]) + calcE2(mat, samplePoints[i], samplePoints[j]);
-						if (tmp < min) {
-							min = tmp;
-						}
-					}
-					(*Mptr)[i] = min;
-				}
-				list<Edge>::iterator tmpItor = edges.begin();
-				for (; tmpItor != edges.end(); tmpItor++) {
-					if (tmpItor != edgeItor) {
-						double **toMptr = tmpItor->getMbyTo(itor->id);
-						for (int i = 0; i < samplePoints.size(); i++) {
-							(*Mptr)[i] += (*toMptr)[i];
-						}
-					}
-				}
-			}
-		}
-
 		int minIndex;
 		double min;
 		for (int i = 0; i < samplePoints.size(); i++) {
 			cur[i] = cur[i] = ks * calcEs(n->p, samplePoints[i]) + ki * calcEi(mat, n->p, samplePoints[i]);
 		}
-		for (edgeItor = edges.begin(); edgeItor != edges.end(); edgeItor++) {
+		for (list<Edge>::iterator edgeItor = edges.begin(); edgeItor != edges.end(); edgeItor++) {
 			double **toMptr = edgeItor->getMbyTo(itor->id);
 			for (int i = 0; i < samplePoints.size(); i++) {
 				cur[i] += (*toMptr)[i];
@@ -133,6 +107,49 @@ int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<Point
 	}
 	free(cur);
 	return sampleIndices;
+}
+
+void StructurePropagation::calcMij(Node &n, const Mat &mat, const vector<PointPos> &samplePoints) {
+	list<Edge> edges;
+	list<Edge>::iterator edgeItor;
+	n.getEdges(edges);
+	for (edgeItor = edges.begin(); edgeItor != edges.end(); edgeItor++) {
+		double **Mptr = edgeItor->getMbyFrom(n.id);
+		int calculable = 1;
+		for (list<Edge>::iterator tmpItor = edges.begin(); tmpItor != edges.end(); tmpItor++) {
+			if (tmpItor != edgeItor) {
+				double **toMptr = tmpItor->getMbyTo(n.id);
+				if (*toMptr == NULL) {
+					calculable = 0;
+					break;
+				}
+			}
+
+		}
+		if (*Mptr == NULL && calculable) {
+			*Mptr = (double*)malloc(samplePoints.size() * sizeof(double));
+			for (int i = 0; i < samplePoints.size(); i++) {
+				double min = INT_MAX;
+				for (int j = 0; j < samplePoints.size(); j++) {
+					double tmp = ks * calcEs(n.p, samplePoints[j]) +
+						ki * calcEi(mat, n.p, samplePoints[j]) + calcE2(mat, samplePoints[i], samplePoints[j]);
+					if (tmp < min) {
+						min = tmp;
+					}
+				}
+				(*Mptr)[i] = min;
+			}
+			list<Edge>::iterator tmpItor = edges.begin();
+			for (; tmpItor != edges.end(); tmpItor++) {
+				if (tmpItor != edgeItor) {
+					double **toMptr = tmpItor->getMbyTo(n.id);
+					for (int i = 0; i < samplePoints.size(); i++) {
+						(*Mptr)[i] += (*toMptr)[i];
+					}
+				}
+			}
+		}
+	}
 }
 
 int *StructurePropagation::DP(const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, const Mat &mat) {

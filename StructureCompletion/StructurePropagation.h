@@ -34,4 +34,5 @@ private:
 	double calcEs(PointPos i, PointPos xi);
 	double calcEi(const Mat &mat, PointPos i, PointPos xi);
 	double calcE2(const Mat &mat, PointPos i1, PointPos i2);
+	void calcMij(Node &n, const Mat &mat, const vector<PointPos> &samplePoints);
 };
