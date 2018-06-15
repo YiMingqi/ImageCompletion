@@ -30,11 +30,10 @@ void PointManager::reset(const vector<vector<Point>> &linePoints, const Mat1b &m
 	bool inMask = false;
 	Endpoints endpoints;
 	for (int j = 0; j < linePoints.size(); j++) {
-		vector<Point> points = linePoints[j];
 		int i;
-		for (i = 0; i < points.size(); i++) {
-			int y = points[i].y;
-			int x = points[i].x;
+		for (i = 0; i < linePoints[j].size(); i++) {
+			int y = linePoints[j][i].y;
+			int x = linePoints[j][i].x;
 			if (y < 0 || y >= mask.rows || x < 0 || x >= mask.cols) {
 				continue;
 			}
@@ -46,7 +45,7 @@ void PointManager::reset(const vector<vector<Point>> &linePoints, const Mat1b &m
 				}
 			}
 			else {
-				if (nearBoundary(points[i])) {
+				if (nearBoundary(linePoints[j][i])) {
 					boundaryPoints.insert(PointPos(j, i));
 				}
 				if (inMask == false) {
@@ -111,25 +110,36 @@ void PointManager::getPointsinPatch(PointPos p, vector<Point> &ret) {
 	int rightBound = MIN(center.x + blockSize - blockSize / 2, mask.cols);
 	int upBound = MAX(center.y - blockSize / 2, 0);
 	int downBound = MIN(center.y + blockSize - blockSize / 2, mask.rows);
-	Endpoints endPoints = lineEnds[p.lineIndex];
-	vector<Point> points = linePoints[endPoints.trueLineIndex];
-	int beginIndex;
-	for (int i = p.pointIndex; i >= endPoints.startIndex; i--) {
-		Point point = points[i];
-		if (point.x < leftBound || point.y < upBound || point.x >= rightBound || point.y >= downBound) {
-			beginIndex = i + 1;
-			break;
-		}
+	int hashValue = calcHashValue(center.x, center.y);
+	list<PointPos> pointPositions;
+	if (intersectingMap.count(hashValue)) {
+		pointPositions = intersectingMap[hashValue];
 	}
-	for (int i = beginIndex; i < p.pointIndex; i++) {
-		ret.push_back(points[i]);
+	else {
+		pointPositions.push_back(p);
 	}
-	for (int i = p.pointIndex; i < endPoints.endIndex; i++) {
-		if (points[i].x < leftBound || points[i].y < upBound || points[i].x >= rightBound || points[i].y >= downBound) {
-			break;
+
+	for (list<PointPos>::iterator p = pointPositions.begin(); p != pointPositions.end(); p++) {
+		Endpoints endPoints = lineEnds[p->lineIndex];
+		vector<Point> *points = &linePoints[endPoints.trueLineIndex];
+		int beginIndex;
+		for (int i = p->pointIndex; i >= endPoints.startIndex; i--) {
+			Point point = (*points)[i];
+			if (point.x < leftBound || point.y < upBound || point.x >= rightBound || point.y >= downBound) {
+				beginIndex = i + 1;
+				break;
+			}
 		}
-		else {
-			ret.push_back(points[i]);
+		for (int i = beginIndex; i < p->pointIndex; i++) {
+			ret.push_back((*points)[i]);
+		}
+		for (int i = p->pointIndex; i < endPoints.endIndex; i++) {
+			if ((*points)[i].x < leftBound || (*points)[i].y < upBound || (*points)[i].x >= rightBound || (*points)[i].y >= downBound) {
+				break;
+			}
+			else {
+				ret.push_back((*points)[i]);
+			}
 		}
 	}
 }
@@ -147,12 +157,7 @@ Point *PointManager::getLinePtr(int i, int *length) {
 	return &linePoints[endPoints.trueLineIndex][endPoints.startIndex];
 }
 
-struct {
-	Node node;
-	list<PointPos>::iterator itor;
-};
-
-void PointManager::constructBPMap(map<int, list<PointPos>> &intersectingMap) {
+void PointManager::constructBPMap() {
 	map<int, list<PointPos>>::iterator mapItor;
 	list<Node> BFSstack;
 	vector<vector<ushort>> pointVisitedMarks;
@@ -169,28 +174,26 @@ void PointManager::constructBPMap(map<int, list<PointPos>> &intersectingMap) {
 	nodeList.reserve(total / blockSize);
 	nodeList.resize(1);
 
-	vector<Node> intersections;
+	int *lineVisitedMarks = (int*)malloc(lineEnds.size() * sizeof(int));
 	for (mapItor = intersectingMap.begin(); mapItor != intersectingMap.end(); mapItor++) {
-		intersections.push_back(Node(*(mapItor->second.begin())));
+		BFSstack.push_back(Node(*(mapItor->second.begin())));
 		//预着色,用于处理两个不同位置的交点patch重叠的情况
-		vector<ushort> marks = pointVisitedMarks[lineEnds[mapItor->second.begin()->lineIndex].trueLineIndex];
-		int beginIndex = mapItor->second.begin()->pointIndex;
-		for (int i = beginIndex - blockSize / 2 + 1; i < beginIndex + blockSize / 2; i++) {
-			marks[i] = Node::totalNum;
+		list<PointPos>::iterator listItor = mapItor->second.begin();
+		for (; listItor != mapItor->second.end(); listItor++) {
+			pointVisitedMarks[lineEnds[listItor->lineIndex].trueLineIndex][listItor->pointIndex] = Node::totalNum;
+			lineVisitedMarks[listItor->lineIndex] = 1;
 		}
 		if (2 * mapItor->second.size() > nodeListBucket.size()) {
 			nodeListBucket.resize(2 * mapItor->second.size());
 		}
 	}
-	int i = 0;
-	//先用一个数组记录一下某条线段有没有被标记，没有被标记的线段从开头开始扩散，一直到结尾结束
-	int *lineVisitedMarks = (int*)malloc(lineEnds.size() * sizeof(int));
-	for (mapItor = intersectingMap.begin(); mapItor != intersectingMap.end(); mapItor++, i++) {
+
+	for (mapItor = intersectingMap.begin(); mapItor != intersectingMap.end(); mapItor++) {
 		list<PointPos>::iterator listItor = mapItor->second.begin();
 		for (; listItor != mapItor->second.end(); listItor++) {
-			addNeighbor(intersections[i], *listItor, pointVisitedMarks, BFSstack);
-			lineVisitedMarks[listItor->lineIndex] = 1;
+			addNeighbor(*BFSstack.begin(), *listItor, pointVisitedMarks, BFSstack);
 		}
+		BFSstack.pop_front();
 	}
 
 	while (BFSstack.size()) {
@@ -199,20 +202,20 @@ void PointManager::constructBPMap(map<int, list<PointPos>> &intersectingMap) {
 		BFSstack.pop_front();
 	}
 
-	Edge edge(blockSize);
+	Edge edge;
 	for (int i = 0; i < lineEnds.size(); i++) {
 		if (lineVisitedMarks[i] == 0) {
 			Endpoints endPoints = lineEnds[i];
-			vector<Point> points = linePoints[endPoints.trueLineIndex];
 			int endIndex = endPoints.endIndex - blockSize / 2;
 			for (int j = endPoints.startIndex; j < endIndex; j += blockSize / 2) {
 				Node tmpNode = Node(PointPos(i, j));
-				if (edge.ni >= 0) {
+				if (edge.ni > 0) {
 					tmpNode.insertEdge(edge);
 				}
 				edge.ni = tmpNode.id;
 				edge.nj = tmpNode.id + 1;
 				tmpNode.insertEdge(edge);
+				nodeListBucket[tmpNode.getEdgeNum() - 1].push_front(tmpNode);
 			}
 		}
 	}
@@ -221,59 +224,119 @@ void PointManager::constructBPMap(map<int, list<PointPos>> &intersectingMap) {
 
 }
 
-void PointManager::addNeighbor(Node &n, const PointPos &pos, const vector<vector<ushort>> &visitedMark, list<Node> &BFSstack) {
+void PointManager::addNeighbor(Node &n, const PointPos &pos, vector<vector<ushort>> &visitedMark, list<Node> &BFSstack) {
 	Endpoints endpoints = lineEnds[pos.lineIndex];
 	int lineIndex = endpoints.trueLineIndex;
 	int pointIndex = pos.pointIndex;
 	int prePointIndex = pointIndex - blockSize / 2;
 	int nextPointIndex = pointIndex + blockSize / 2;
-	vector<ushort> marks = visitedMark[lineIndex];
+	int bucketEntry = n.getEdgeNum() - 1;
 	if (prePointIndex >= endpoints.startIndex) {
-		ushort preNodeId = marks[prePointIndex];
-		if (preNodeId && nodeList.size() > preNodeId) {
-			Edge tmpEdge(n.id, preNodeId, blockSize);
-			n.insertEdge(tmpEdge);
-			nodeList[preNodeId]->insertEdge(tmpEdge);
-		}
-		else {
-			BFSstack.push_back(Node(PointPos(lineIndex, prePointIndex)));
-			for (int i = pointIndex - 1; i >= prePointIndex; i--) {
-				marks[i] = Node::totalNum;
+		int i;
+		for (i = pointIndex - 1; i >= prePointIndex; i--) {
+			if (visitedMark[lineIndex][i] && nodeList.size() > visitedMark[lineIndex][i]) {
+				Edge tmpEdge(n.id, visitedMark[lineIndex][i]);
+				n.insertEdge(tmpEdge);
+				nodeList[visitedMark[lineIndex][i]]->insertEdge(tmpEdge);
+				break;
 			}
 		}
+		if (i == prePointIndex) {
+			BFSstack.push_back(Node(PointPos(lineIndex, i)));
+			visitedMark[lineIndex][i] = Node::totalNum;
+		}
+		bucketEntry++;
 	}
 	if (nextPointIndex < endpoints.endIndex) {
-		ushort nextNodeId = marks[nextPointIndex];
-		if (nextNodeId && nodeList.size() > nextNodeId) {
-			Edge tmpEdge(n.id, nextNodeId, blockSize);
-			n.insertEdge(tmpEdge);
-			nodeList[nextNodeId]->insertEdge(tmpEdge);
-		}
-		else {
-			BFSstack.push_back(Node(PointPos(lineIndex, nextPointIndex)));
-			for (int i = pointIndex + 1; i <= nextPointIndex; i++) {
-				marks[i] = Node::totalNum;
+		int i;
+		for (i = pointIndex + 1; i < nextPointIndex; i++) {
+			if (visitedMark[lineIndex][i] && nodeList.size() > visitedMark[lineIndex][i]) {
+				Edge tmpEdge(n.id, visitedMark[lineIndex][i]);
+				n.insertEdge(tmpEdge);
+				nodeList[visitedMark[lineIndex][i]]->insertEdge(tmpEdge);
+				break;
 			}
 		}
+		if (i == nextPointIndex) {
+			BFSstack.push_back(Node(PointPos(lineIndex, i)));
+			visitedMark[lineIndex][i] = Node::totalNum;
+		}
+		bucketEntry++;
 	}
-	list<Node>::iterator itor;
-	int bucketEntry = n.getEdgeNum() - 1;
 	nodeListBucket[bucketEntry].push_front(n);
 	nodeList.push_back(nodeListBucket[bucketEntry].begin());
 }
 
-Node *PointManager::getBPNext() {
-	list<Node>::iterator itor = nodeListBucket[0].begin();
-	assert(itor->getEdgeNum() == 1);
-	list<Edge> e;
-	itor->getEdges(e);
-	list<Edge>::iterator eItor = e.begin();
-	int id = (eItor->ni == itor->id) ? eItor->nj : eItor->ni;
-	int edgeNum = nodeList[id]->getEdgeNum();
-	nodeListBucket[edgeNum - 1].erase(nodeList[id]);
-	nodeList[id]->eraseEdge(eItor);
-	nodeListBucket[edgeNum - 2].push_front(*nodeList[id]);
-	nodeList[id] = nodeListBucket[edgeNum - 2].begin();
-	nodeListBucket[0].pop_front();
-	return &(*itor);
+unique_ptr<Node> PointManager::getBPNext() {
+	if (nodeListBucket[0].size() > 0) {
+		list<Node>::iterator itor = nodeListBucket[0].begin();
+		assert(itor->getEdgeNum() == 1);
+		list<Edge> e;
+		itor->getEdges(e);
+		list<Edge>::iterator eItor = e.begin();
+		int id = (eItor->ni == itor->id) ? eItor->nj : eItor->ni;
+		int edgeNum = nodeList[id]->getEdgeNum();
+		nodeList[id]->eraseEdge(eItor);
+		Node tmpNode = *nodeList[id];
+		nodeListBucket[edgeNum - 1].erase(nodeList[id]);
+		nodeListBucket[edgeNum - 2].push_front(tmpNode);
+		nodeList[id] = nodeListBucket[edgeNum - 2].begin();
+		nodeListBucket[0].pop_front();
+		unique_ptr<Node> ret(new Node(*itor));
+		return ret;
+	}
+	else {
+		return NULL;
+	}
+}
+
+void PointManager::getSamplePoints(vector<PointPos> &samples, int sampleStep) {
+	samples.clear();
+	int lineIndex = 0;
+	Endpoints endpoints = lineEnds[0];
+	int total = 0;
+	for (int i = 0; i < linePoints.size(); i++) {
+		total += linePoints[i].size();
+	}
+	for (int i; i < lineEnds.size(); i++) {
+		total -= (lineEnds[i].endIndex - lineEnds[i].startIndex);
+	}
+	samples.reserve(total / (blockSize / 2));
+	for (int i = 0; i < linePoints.size(); i++) {
+		int beginIndex = 0;
+		int endIndex;
+		while (endpoints.trueLineIndex == i) {
+			endIndex = endpoints.startIndex;
+			for (int j = endIndex - 1; j >= beginIndex; j -= sampleStep) {
+				samples.push_back(PointPos(i, j));
+			}
+			beginIndex = endpoints.endIndex; 
+			endpoints = lineEnds[++lineIndex];
+		}
+		endIndex = linePoints[i].size();
+		for (int j = endIndex - 1; j >= beginIndex; j -= sampleStep) {
+			samples.push_back(PointPos(i, j));
+		}
+	}
+	samples.shrink_to_fit();
+}
+
+void PointManager::getAnchorPoints(vector<PointPos> &anchors) {
+	anchors.clear();
+	int lineIndex = 0;
+	Endpoints endpoints = lineEnds[0];
+	int total = 0;
+	for (int i; i < lineEnds.size(); i++) {
+		total += (lineEnds[i].endIndex - lineEnds[i].startIndex);
+	}
+	anchors.reserve(total / (blockSize / 2));
+	for (int i = 0; i < linePoints.size(); i++) {
+		while (endpoints.trueLineIndex == i) {
+			for (int j = endpoints.startIndex; j < endpoints.endIndex; j += blockSize / 2) {
+				anchors.push_back(PointPos(i, j));
+			}
+			endpoints = lineEnds[++lineIndex];
+		}
+	}
+	anchors.shrink_to_fit();
 }

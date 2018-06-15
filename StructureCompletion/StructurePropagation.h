@@ -25,14 +25,12 @@ private:
 	int isCurve;
 	double ki;
 	double ks;
-	int curLine;
 	PointManager pointManager;
-	vector<PointPos> samplePoints;
-	vector<PointPos> anchorPoints;
 
 
-	void getResult(int *sampleIndices, Mat& result);
-	int *DP(const Mat &mat);
+	void getResult(int *sampleIndices, const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, Mat& result);
+	int *DP(const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, const Mat &mat);
+	int *BP(const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, const Mat &mat);
 	double calcEs(PointPos i, PointPos xi);
 	double calcEi(const Mat &mat, PointPos i, PointPos xi);
 	double calcE2(const Mat &mat, PointPos i1, PointPos i2);

@@ -17,18 +17,19 @@ public:
 	}
 };
 
-class MElement {
+/*class MElement {
 public:
-	double value;
+	float value;
 	int xi;
 	MElement() {
-
+		value = 0;
+		xi = -1;
 	}
-	MElement(double value, int xi) {
+	MElement(float value, int xi) {
 		this->value = value;
 		this->xi = xi;
 	}
-};
+};*/
 
 class Edge;
 class Node {
@@ -60,21 +61,47 @@ public:
 };
 
 class Edge {
+private:
+	double *Mij;
+	double *Mji;
 public:
 	ushort ni;
 	ushort nj;
-	shared_ptr<MElement> Mij;
-	shared_ptr<MElement> Mji;
 
-	Edge(ushort ni, ushort nj, int size): ni(ni), nj(nj) {
-		Mij = shared_ptr<MElement>((MElement*)malloc(size * sizeof(MElement)), free);
-		Mji = shared_ptr<MElement>((MElement*)malloc(size * sizeof(MElement)), free);
+	Edge(ushort ni, ushort nj): ni(ni), nj(nj) {
 	}
 
-	Edge(int size) {
-		Mij = shared_ptr<MElement>((MElement*)malloc(size * sizeof(MElement)), free);
-		Mji = shared_ptr<MElement>((MElement*)malloc(size * sizeof(MElement)), free);
+	Edge() {
 	}
+
+	inline ushort getAnother(ushort n) {
+		if (n == ni) {
+			return nj;
+		}
+		else {
+			return ni;
+		}
+	}
+
+	inline double **getMbyFrom(ushort from) {
+		if (from == ni) {
+			return &Mij;
+		}
+		else {
+			return &Mji;
+		}
+
+	}
+
+	inline double **getMbyTo(ushort to) {
+		if (to == ni) {
+			return &Mji;
+		}
+		else  {
+			return &Mij;
+		}
+	}
+
 };
 
 class PointManager {
@@ -87,11 +114,10 @@ public:
 	void getPointsinPatch(PointPos p, vector<Point> &ret);
 	Point *getLinePtr(int i, int *length);
 	int getLineNum();
-	// void getSamplePoints(vector<Point> &samples);
-	// void getAnchorPoints(vector<Point> &anchors);
-	// void getIntersection(vector<list<PointPos>> &intersections);
-	void constructBPMap(map<int, list<PointPos>> &intersectingMap);
-	Node *getBPNext();
+	void getSamplePoints(vector<PointPos> &samples, int sampleStep);
+	void constructBPMap();
+	unique_ptr<Node> getBPNext();
+	void getAnchorPoints(vector<PointPos> &anchors);
 
 
 private:
@@ -107,5 +133,5 @@ private:
 
 	bool nearBoundary(const Point &p);
 	int calcHashValue(int x, int y);
-	void addNeighbor(Node &n, const PointPos &pos, const vector<vector<ushort>> &visitedMark, list<Node> &BFSstack);
+	void addNeighbor(Node &n, const PointPos &pos, vector<vector<ushort>> &visitedMark, list<Node> &BFSstack);
 };

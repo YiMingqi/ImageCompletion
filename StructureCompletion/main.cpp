@@ -73,7 +73,6 @@ int _tmain(int argc, _TCHAR* argv[])
 	// img=imread("img.jpg",1);
 	// mask=imread("mask.bmp",0);
 
-
 	Mat img = Mat(400, 400, CV_8UC3);
 	for (int i = 0; i < 400; i++) {
 		for (int j = 0; j < 400; j++) {
@@ -96,13 +95,6 @@ int _tmain(int argc, _TCHAR* argv[])
 			img.at<Vec3b>(i, j) = Vec3b(0, 0, 0);
 		}
 	}
-
-	list<int> tmp;
-	tmp.push_front(1);
-	list<int>::iterator itor = tmp.begin();
-	tmp.push_front(2);
-	tmp.erase(itor);
-	cout << *tmp.begin();
 
 	//img=imread("curve_test1.png",1);
 	//mask=imread("curve_test1.bmp",0);
