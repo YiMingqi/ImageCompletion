@@ -34,7 +34,7 @@ public:
 class Edge;
 class Node {
 private:
-	list<Edge> edges;
+	list<shared_ptr<Edge>> edges;
 	int edgeNum;
 public:
 	const PointPos p;
@@ -43,16 +43,26 @@ public:
 	Node(PointPos p) : p(p), id(++totalNum) {
 		edgeNum = 0;
 	}
-	void insertEdge(const Edge &e) {
+	void push_front(const shared_ptr<Edge> &e) {
 		edges.push_front(e);
 		edgeNum++;
 	}
-	void eraseEdge(list<Edge>::iterator itor) {
+	void push_back(const shared_ptr<Edge> &e) {
+		edges.push_back(e);
+		edgeNum++;
+	}
+	void eraseEdge(list<shared_ptr<Edge>>::iterator &itor) {
 		edges.erase(itor);
 		edges.push_back(*itor);
 		edgeNum--;
 	}
-	void getEdges(list<Edge> &edges) {
+	list<shared_ptr<Edge>>::iterator getEdgeBegin() {
+		return edges.begin();
+	}
+	list<shared_ptr<Edge>>::iterator getEdgeEnd() {
+		return edges.end();
+	}
+	void getEdges(list<shared_ptr<Edge>> &edges) {
 		edges = this->edges;
 	}
 	int getEdgeNum() {
@@ -69,9 +79,11 @@ public:
 	ushort nj;
 
 	Edge(ushort ni, ushort nj): ni(ni), nj(nj) {
+		Mij = Mji = NULL;
 	}
 
 	Edge() {
+		Mij = Mji = NULL;
 	}
 
 	inline ushort getAnother(ushort n) {
@@ -118,7 +130,11 @@ public:
 	void constructBPMap();
 	unique_ptr<Node> getBPNext();
 	void getAnchorPoints(vector<PointPos> &anchors);
-
+	void getPropstackItor(list<shared_ptr<Node>>::iterator &begin, list<shared_ptr<Node>>::iterator &end);
+	void getPropstackReverseItor(list<shared_ptr<Node>>::reverse_iterator &begin, list<shared_ptr<Node>>::reverse_iterator &end);
+	int getPropstackSize() {
+		return propagationStack.size();
+	}
 
 private:
 	vector<vector<Point>> linePoints;
@@ -130,8 +146,11 @@ private:
 	vector<list<Node>> nodeListBucket;
 	void constructMap();
 	vector<list<Node>::iterator> nodeList;
+	vector<shared_ptr<Node>> nodes;
+	list<shared_ptr<Node>> propagationStack;
 
 	bool nearBoundary(const Point &p, bool isSample);
 	int calcHashValue(int x, int y);
 	void addNeighbor(Node &n, const PointPos &pos, vector<vector<ushort>> &visitedMark, list<Node> &BFSstack);
+	void getNeighbor(Node &n, const PointPos &pos, vector<vector<ushort>> &visitedMark, list<shared_ptr<Node>> &neighbors);
 };

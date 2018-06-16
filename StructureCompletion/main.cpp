@@ -134,6 +134,12 @@ int _tmain(int argc, _TCHAR* argv[])
 					Wang_GetCurve(mousepoints[i], PointsList[i]);
 				}
 			}
+			/*PointsList.resize(3);
+			for (int i = 50; i < 350; i++) {
+				PointsList[0].push_back(Point(i, 150));
+				PointsList[1].push_back(Point(i, 250));
+				PointsList[2].push_back(Point(200, i));
+			}*/
 			for (int i = 0; i < PointsList.size(); i++) {
 				DrawPoints(PointsList[i], img, CV_RGB(255, 0, 0), 1);
 			}
@@ -141,7 +147,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			SP.Run(mask,result,PointsList,Local_Result_Copy);
 			imshow("img", Local_Result_Copy);
 			// imshow("img", result_copy);
-			// result.copyTo(result_copy);
+			result.copyTo(result_copy);
 			PointsList.clear();
 			mousepoints.clear();
 		}
