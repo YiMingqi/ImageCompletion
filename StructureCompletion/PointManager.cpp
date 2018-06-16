@@ -45,8 +45,8 @@ void PointManager::reset(const vector<vector<Point>> &linePoints, const Mat1b &m
 				}
 			}
 			else {
-				if (nearBoundary(linePoints[j][i])) {
-					boundaryPoints.insert(PointPos(j, i));
+				if (nearBoundary(linePoints[j][i], false)) {
+					boundaryPoints.insert(PointPos(lineEnds.size(), i));
 				}
 				if (inMask == false) {
 					endpoints.startIndex = i;
@@ -76,17 +76,21 @@ void PointManager::reset(const vector<vector<Point>> &linePoints, const Mat1b &m
 	}
 }
 
-bool PointManager::nearBoundary(const Point &p) {
+bool PointManager::nearBoundary(const Point &p, bool isSample) {
 	int leftBound = MAX(p.x - blockSize / 2, 0);
 	int rightBound = MIN(p.x + blockSize - blockSize / 2, mask.cols);
 	int upBound = MAX(p.y - blockSize / 2, 0);
 	int downBound = MIN(p.y + blockSize - blockSize / 2, mask.rows);
-	for (int i = upBound; i < downBound; i++) {
-		const uchar *ptr = mask.ptr<uchar>(i);
-		for (int j = leftBound; j < rightBound; j++) {
-			if (ptr[j] != 0) {
-				return true;
-			}
+	const uchar *upPtr = mask.ptr<uchar>(upBound);
+	const uchar *downPtr = mask.ptr<uchar>(downBound - 1);
+	for (int i = leftBound; i < rightBound; i++) {
+		if (!upPtr[i] == isSample || !downPtr[i] == isSample) {
+			return true;
+		}
+	}
+	for (int i = upBound + 1; i < downBound - 1; i++) {
+		if (!mask.at<uchar>(i, leftBound) == isSample || !mask.at<uchar>(i, rightBound - 1) == isSample) {
+			return true;
 		}
 	}
 	return false;
@@ -118,27 +122,25 @@ void PointManager::getPointsinPatch(PointPos p, vector<Point> &ret) {
 	else {
 		pointPositions.push_back(p);
 	}
-
 	for (list<PointPos>::iterator p = pointPositions.begin(); p != pointPositions.end(); p++) {
 		Endpoints endPoints = lineEnds[p->lineIndex];
-		vector<Point> *points = &linePoints[endPoints.trueLineIndex];
+		Point *points = &linePoints[endPoints.trueLineIndex][0];
 		int beginIndex;
-		for (int i = p->pointIndex; i >= endPoints.startIndex; i--) {
-			Point point = (*points)[i];
-			if (point.x < leftBound || point.y < upBound || point.x >= rightBound || point.y >= downBound) {
+		for (int i = p->pointIndex; i >= 0; i--) {
+			if (points[i].x < leftBound || points[i].y < upBound || points[i].x >= rightBound || points[i].y >= downBound) {
 				beginIndex = i + 1;
 				break;
 			}
 		}
 		for (int i = beginIndex; i < p->pointIndex; i++) {
-			ret.push_back((*points)[i]);
+			ret.push_back(points[i]);
 		}
-		for (int i = p->pointIndex; i < endPoints.endIndex; i++) {
-			if ((*points)[i].x < leftBound || (*points)[i].y < upBound || (*points)[i].x >= rightBound || (*points)[i].y >= downBound) {
+		for (int i = p->pointIndex; i < linePoints[endPoints.trueLineIndex].size(); i++) {
+			if (points[i].x < leftBound || points[i].y < upBound || points[i].x >= rightBound || points[i].y >= downBound) {
 				break;
 			}
 			else {
-				ret.push_back((*points)[i]);
+				ret.push_back(points[i]);
 			}
 		}
 	}
@@ -298,24 +300,36 @@ void PointManager::getSamplePoints(vector<PointPos> &samples, int sampleStep) {
 	for (int i = 0; i < linePoints.size(); i++) {
 		total += linePoints[i].size();
 	}
-	for (int i; i < lineEnds.size(); i++) {
+	for (int i = 0; i < lineEnds.size(); i++) {
 		total -= (lineEnds[i].endIndex - lineEnds[i].startIndex);
 	}
-	samples.reserve(total / (blockSize / 2));
+	samples.reserve(total / sampleStep);
 	for (int i = 0; i < linePoints.size(); i++) {
-		int beginIndex = 0;
+		int beginIndex = blockSize; //ensure all samples have complete line segments
 		int endIndex;
 		while (endpoints.trueLineIndex == i) {
 			endIndex = endpoints.startIndex;
 			for (int j = endIndex - 1; j >= beginIndex; j -= sampleStep) {
-				samples.push_back(PointPos(i, j));
+				if (j == beginIndex) {
+					int c = 0;
+					c++;
+				}
+				if (!nearBoundary(linePoints[i][j], true)) {
+					samples.push_back(PointPos(lineIndex, j));
+				}
 			}
-			beginIndex = endpoints.endIndex; 
-			endpoints = lineEnds[++lineIndex];
+			beginIndex = endpoints.endIndex;
+			++lineIndex;
+			if (lineIndex >= lineEnds.size()) {
+				break;
+			}
+			endpoints = lineEnds[lineIndex];
 		}
-		endIndex = linePoints[i].size();
+		endIndex = linePoints[i].size() - blockSize; //ensure all samples have complete line segments
 		for (int j = endIndex - 1; j >= beginIndex; j -= sampleStep) {
-			samples.push_back(PointPos(i, j));
+			if (!nearBoundary(linePoints[i][j], true)) {
+				samples.push_back(PointPos(lineIndex - 1, j));
+			}
 		}
 	}
 	samples.shrink_to_fit();
@@ -326,16 +340,20 @@ void PointManager::getAnchorPoints(vector<PointPos> &anchors) {
 	int lineIndex = 0;
 	Endpoints endpoints = lineEnds[0];
 	int total = 0;
-	for (int i; i < lineEnds.size(); i++) {
+	for (int i = 0; i < lineEnds.size(); i++) {
 		total += (lineEnds[i].endIndex - lineEnds[i].startIndex);
 	}
 	anchors.reserve(total / (blockSize / 2));
 	for (int i = 0; i < linePoints.size(); i++) {
 		while (endpoints.trueLineIndex == i) {
 			for (int j = endpoints.startIndex; j < endpoints.endIndex; j += blockSize / 2) {
-				anchors.push_back(PointPos(i, j));
+				anchors.push_back(PointPos(lineIndex, j));
 			}
-			endpoints = lineEnds[++lineIndex];
+			++lineIndex;
+			if (lineIndex >= lineEnds.size()) {
+				break;
+			}
+			endpoints = lineEnds[lineIndex];
 		}
 	}
 	anchors.shrink_to_fit();

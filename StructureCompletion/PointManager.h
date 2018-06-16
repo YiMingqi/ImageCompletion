@@ -131,7 +131,7 @@ private:
 	void constructMap();
 	vector<list<Node>::iterator> nodeList;
 
-	bool nearBoundary(const Point &p);
+	bool nearBoundary(const Point &p, bool isSample);
 	int calcHashValue(int x, int y);
 	void addNeighbor(Node &n, const PointPos &pos, vector<vector<ushort>> &visitedMark, list<Node> &BFSstack);
 };

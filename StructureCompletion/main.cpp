@@ -37,6 +37,7 @@ void onmouse(int event,int x,int y,int flags,void* parm)
 			DrawPoints(line, result_copy, Scalar(255, 0, 255), 1);//×ÏÉ«
 			circle(result_copy,points[0],3,Scalar(255,0,0),CV_FILLED);//À¶É«
 			circle(result_copy,points[1],3,Scalar(255,0,0),CV_FILLED);
+			
 			// rectangle(result_copy,RectByCenter(PointsList[0],blocksize),CV_RGB(255,0,0),2);
 			imshow("img",result_copy);
 		}
@@ -86,7 +87,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 	for (int i = 0; i < 400; i++) {
 		for (int j = 190; j < 210; j++) {
-			img.at<Vec3b>(i, j) = Vec3b(0, 0, 255);
+			img.at<Vec3b>(i, j) = Vec3b(255, 0, 0);
 		}
 	}
 
@@ -138,8 +139,9 @@ int _tmain(int argc, _TCHAR* argv[])
 			}
 			SP.SetParm(blocksize,samplestep,iscurve);
 			SP.Run(mask,result,PointsList,Local_Result_Copy);
-			imshow("img",Local_Result_Copy);
-			result.copyTo(result_copy);
+			imshow("img", Local_Result_Copy);
+			// imshow("img", result_copy);
+			// result.copyTo(result_copy);
 			PointsList.clear();
 			mousepoints.clear();
 		}

@@ -17,6 +17,10 @@ void StructurePropagation::Run(const Mat1b &_mask, const Mat& _img, const vector
 	vector<PointPos> samplePoints;
 	pointManager.getSamplePoints(samplePoints, sampleStep);
 
+	int *sampleIndices;
+	vector<PointPos> anchorPoints;
+	sampleIndices = DP(samplePoints, anchorPoints, grayMat);
+	getResult(sampleIndices, samplePoints, anchorPoints, result);
 	/*curLine = 0;
 	int *sampleIndices = NULL;
 	if (lines.size() == 1) {
@@ -153,10 +157,10 @@ void StructurePropagation::calcMij(Node &n, const Mat &mat, const vector<PointPo
 }
 
 int *StructurePropagation::DP(const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, const Mat &mat) {
+	pointManager.getAnchorPoints(anchorPoints);
+
 	double *M = (double *)malloc(2 * samplePoints.size() * sizeof(double));
 	int *record = (int *)malloc(samplePoints.size() * anchorPoints.size() * sizeof(int));
-
-	pointManager.getAnchorPoints(anchorPoints);
 
 	for (int i = 0; i < samplePoints.size(); i++) {
 		M[i] = ks * calcEs(anchorPoints[0], samplePoints[i]) +
@@ -167,10 +171,14 @@ int *StructurePropagation::DP(const vector<PointPos> &samplePoints, vector<Point
 	for (i = 1; i < anchorPoints.size(); i++) {
 		curOffset = (i % 2) * samplePoints.size();
 		preOffset = ((i + 1) % 2) * samplePoints.size();
+		// calculate the min value for each xi
+		// xi = j
 		for (int j = 0; j < samplePoints.size(); j++) {
 			double E1 = ks * calcEs(anchorPoints[i], samplePoints[j]) +
 				ki * calcEi(mat, anchorPoints[i], samplePoints[j]);
 			double min = INT_MAX;
+			// choose optimal x(i-1)
+			// x(i-1) = k
 			for (int k = 0; k < samplePoints.size(); k++) {
 				double tmp = calcE2(mat, samplePoints[j], samplePoints[k]) + M[preOffset + k];
 				if (tmp < min) {
@@ -180,7 +188,26 @@ int *StructurePropagation::DP(const vector<PointPos> &samplePoints, vector<Point
 			}
 			M[curOffset + j] = E1 + min;
 		}
+		/*for (int j = 0; j < samplePoints.size(); j++) {
+			cout << M[preOffset + j] << ", ";
+		}
+		cout << endl;
+		for (int j = 0; j < samplePoints.size(); j++) {
+			cout << M[curOffset + j] << ", ";
+		}
+		cout << endl;
+		for (int j = 0; j < samplePoints.size(); j++) {
+			cout << record[samplePoints.size()*i + j] << ", ";
+		}
+		cout << endl << "-------------------------------------------" << endl;*/
 	}
+
+	/*for (int i = 1; i < anchorPoints.size(); i++) {
+		for (int j = 0; j < samplePoints.size(); j++) {
+			cout << record[samplePoints.size()*i + j] << ", ";
+		}
+		cout << endl;
+	}*/
 
 	int *sampleIndices = (int*)malloc(anchorPoints.size() * sizeof(int));
 	double min = INT_MAX;
@@ -192,6 +219,10 @@ int *StructurePropagation::DP(const vector<PointPos> &samplePoints, vector<Point
 
 	for (int i = anchorPoints.size() - 2; i >= 0; i--) {
 		sampleIndices[i] = record[samplePoints.size()*(i + 1) + sampleIndices[i + 1]];
+	}
+
+	for (int i = 0; i < anchorPoints.size(); i++) {
+		cout << sampleIndices[i] << ", ";
 	}
 
 	free(M);
@@ -206,11 +237,12 @@ void StructurePropagation::SetParm(int _blocksize, int _samplestep, int _iscurve
 	this->isCurve = _iscurve;
 }
 
-double StructurePropagation::calcE2(const Mat &mat, PointPos i1, PointPos i2) {
+double StructurePropagation::calcE2(const Mat &mat, const PointPos &i1, const PointPos &i2) {
 	int colLeft1, colLeft2, colRight1, colRight2;
 	int rowUp1, rowUp2, rowDown1, rowDown2;
 	Point p1 = pointManager.getPoint(i1);
 	Point p2 = pointManager.getPoint(i2);
+	// calculate the relative offsets of overlapping area's bounderies
 	if (p1.x > p2.x) {
 		colLeft1 = 0;
 		colLeft2 = p1.x - p2.x;
@@ -240,6 +272,7 @@ double StructurePropagation::calcE2(const Mat &mat, PointPos i1, PointPos i2) {
 		double ssd = 0.0;
 		int cols = colRight1 - colLeft1;
 		int rows = rowDown1 - rowUp1;
+		// calculate the absolute cooordinates of boundaries
 		int xOffset1 = colLeft1 + p1.x - blockSize / 2;
 		int xOffset2 = colLeft2 + p2.x - blockSize / 2;
 		int yOffset1 = rowUp1 + p1.y - blockSize / 2;
@@ -252,26 +285,41 @@ double StructurePropagation::calcE2(const Mat &mat, PointPos i1, PointPos i2) {
 				ssd += diff*diff;
 			}
 		}
+		// do normlization
 		return ssd / (cols * rows);
 	}
 	else {
-		return 0;
+		// no overlapping part
+		return 0.0;
 	}
 }
 
-double StructurePropagation::calcEs(PointPos i, PointPos xi) {
+double StructurePropagation::calcEs(const PointPos &i, const PointPos &xi) {
 	if (isCurve) {
 		vector<Point> points1, points2;
-		vector<double> minDistance1, minDistance2;
+		vector<int> minDistance1, minDistance2;
+		Point pi = pointManager.getPoint(i);
+		Point pxi = pointManager.getPoint(xi);
+		int offsetx = pxi.x - pi.x;
+		int offsety = pxi.y - pi.y;
+		// get points of curve segment contained in patch
 		pointManager.getPointsinPatch(i, points1);
 		pointManager.getPointsinPatch(xi, points2);
 		minDistance1.resize(points1.size());
 		minDistance2.resize(points2.size());
+		// initialize minimal distance
+		for (int i = 0; i < points1.size(); i++) {
+			minDistance1[i] = 1000000.0;
+		}
+		for (int i = 0; i < points2.size(); i++) {
+			minDistance2[i] = 1000000.0;
+		}
+		// calculate the minimal distances for points in curve segments
 		for (int i = 0; i < points1.size(); i++) {
 			for (int j = 0; j < points2.size(); j++) {
-				double diffx = points1[i].x - points2[j].x;
-				double diffy = points1[i].y - points2[j].y;
-				double distance = diffx*diffx + diffy*diffy;
+				int diffx = points1[i].x - points2[j].x + offsetx;
+				int diffy = points1[i].y - points2[j].y + offsety;
+				int distance = diffx*diffx + diffy*diffy;
 				if (distance < minDistance1[i]) {
 					minDistance1[i] = distance;
 				}
@@ -280,38 +328,46 @@ double StructurePropagation::calcEs(PointPos i, PointPos xi) {
 				}
 			}
 		}
-		double es1 = 0.0, es2 = 0.0;
+		int es1 = 0, es2 = 0;
 		for (int i = 0; i < minDistance1.size(); i++) {
 			es1 += minDistance1[i];
 		}
 		for (int i = 0; i < minDistance2.size(); i++) {
 			es2 += minDistance2[i];
 		}
-		return es1 / minDistance1.size() + es2 / minDistance2.size();
+		return (double)es1 / minDistance1.size() + (double)es2 / minDistance2.size();
 	}
 	else {
+		// line segments in patches are always the same
 		return 0.0;
 	}
 }
 
-double StructurePropagation::calcEi(const Mat &mat, PointPos i, PointPos xi) {
+double StructurePropagation::calcEi(const Mat &mat, const PointPos &i, const PointPos &xi) {
 	if (pointManager.nearBoundary(i)) {
 		int offset1 = blockSize / 2;
 		int offset2 = blockSize - offset1;
-		double ssd = 0.0;
+		int ssd = 0.0;
+		int overlappingPixelNum = 0;
 		Point pi = pointManager.getPoint(i);
 		Point pxi = pointManager.getPoint(xi);
 		for (int i = -offset1; i < offset2; i++) {
 			const uchar *ptri = mat.ptr<uchar>(i + pi.y);
 			const uchar *ptrxi = mat.ptr<uchar>(i + pxi.y);
 			for (int j = -offset1; j < offset2; j++) {
-				double diff = ptri[j + pi.x] - ptrxi[j + pxi.x];
-				ssd += diff*diff;
+				// filter out invalid pixels located in masked area
+				if (ptri[j + pi.x] != 0) {
+					int diff = ptri[j + pi.x] - ptrxi[j + pxi.x];
+					overlappingPixelNum++;
+					ssd += diff*diff;
+				}
 			}
 		}
-		return ssd / (blockSize * blockSize);
+		// do nomalization
+		return (double)ssd / overlappingPixelNum;
 	}
 	else {
+		// target patch is contained in mask area totally
 		return 0.0;
 	}
 }
