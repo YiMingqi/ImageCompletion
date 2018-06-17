@@ -23,6 +23,8 @@ void PointManager::reset(const vector<vector<Point>> &linePoints, const Mat1b &m
 	lineEnds.clear();
 	boundaryPoints.clear();
 	intersectingMap.clear();
+	nodes.clear();
+	propagationStack.clear();
 
 	Mat visitMat = Mat::zeros(mask.rows, mask.cols, CV_32SC1);
 
@@ -233,13 +235,14 @@ void PointManager::constructBPMap() {
 
 	//generate the sequence for message sending
 	while (nodeListBucket[0].size() > 0) {
-		list<shared_ptr<Node>>::iterator itor = nodeListBucket[0].begin();
-		assert((*itor)->getEdgeNum() == 1);
-		list<shared_ptr<Edge>>::iterator eItor = (*itor)->getEdgeBegin();
-		int id = (*eItor)->getAnother((*itor)->id);
-		propagationStack.push_back(*itor);
+		shared_ptr<Node> n = *nodeListBucket[0].begin();
+		assert(n->getEdgeNum() == 1);
+		list<shared_ptr<Edge>>::iterator eItor = n->getEdgeBegin();
+		nodes[n->id] = propagationStack.insert(propagationStack.end(), n);
 		nodeListBucket[0].pop_front();
-		shared_ptr<Node> n = *nodes[id];
+		// degrade the adjacent node
+		int id = (*eItor)->getAnother(n->id);
+		n = *nodes[id];
 		int edgeNum = n->getEdgeNum();
 		n->eraseEdge(*eItor);
 		nodeListBucket[edgeNum - 1].erase(nodes[id]);
@@ -247,10 +250,9 @@ void PointManager::constructBPMap() {
 			nodes[id] = nodeListBucket[edgeNum - 2].insert(nodeListBucket[edgeNum - 2].end(), n);
 		}
 		else {
-			propagationStack.push_back(n);
+			nodes[id] = propagationStack.insert(propagationStack.end(), n);
 		}
 	}
-
 	int i = 0;
 	i++;
 }

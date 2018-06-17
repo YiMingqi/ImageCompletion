@@ -31,6 +31,7 @@ void LineInterpolation(Point points[2],vector<Point> &PointList)
 		}
 	}
 }
+
 void Wang_GetCurve(const vector<Point>& mouse_points, vector<Point> &PointList)
 {
 	if(PointList.size()!=0)

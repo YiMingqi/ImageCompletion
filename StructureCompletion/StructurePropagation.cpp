@@ -56,9 +56,8 @@ int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<Point
 	// receive message sent from other neighbors
 	for (; itor != end; itor++) {
 		shared_ptr<Node> n = *itor;
-		list<shared_ptr<Edge>>::iterator begin = n->getEdgeBegin();
 		// calculate message for next neighbor (the node that enqueued this node)
-		calcMij(*n, begin, mat, samplePoints);
+		calcMij(*n, n->getEdgeBegin(), mat, samplePoints);
 	}
 
 	// send updated message back to neighbors
@@ -68,7 +67,7 @@ int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<Point
 	list<shared_ptr<Node>>::reverse_iterator rev_itor;
 	list<shared_ptr<Node>>::reverse_iterator rev_end;
 	pointManager.getPropstackReverseItor(rev_itor, rev_end);
-	for (; rev_itor != rev_end; rev_itor++) {
+	for (int i = 0; rev_itor != rev_end; rev_itor++, i++) {
 		shared_ptr<Node> n = *rev_itor;
 		list<shared_ptr<Edge>>::iterator begin = n->getEdgeBegin();
 		list<shared_ptr<Edge>>::iterator end = n->getEdgeEnd();
@@ -83,7 +82,7 @@ int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<Point
 		double min = INT_MAX;
 		// calculate E1 for all possible xi
 		for (int i = 0; i < samplePoints.size(); i++) {
-			cur[i] = /*ks * calcEs(n->p, samplePoints[i]) + */ki * calcEi(mat, n->p, samplePoints[i]);
+			cur[i] = ks * calcEs(n->p, samplePoints[i]) + ki * calcEi(mat, n->p, samplePoints[i]);
 		}
 		// add up all messages sent to this node
 		for (itor = begin; itor == end; itor++) {
@@ -99,7 +98,7 @@ int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<Point
 				minIndex = i;
 			}
 		}
-		sampleIndices[n->id - 1] = minIndex;
+		sampleIndices[i] = minIndex;
 	}
 
 	// release resources
@@ -225,8 +224,8 @@ void StructurePropagation::calcMij(Node &n, const list<shared_ptr<Edge>>::iterat
 		for (int i = 0; i < samplePoints.size(); i++) {
 			double min = INT_MAX;
 			for (int j = 0; j < samplePoints.size(); j++) {
-				double tmp = /*ks * calcEs(n.p, samplePoints[j]) +*/
-					ki * calcEi(mat, n.p, samplePoints[j]) + calcE2(mat, samplePoints[i], samplePoints[j]);
+				double tmp = /*ks * calcEs(n.p, samplePoints[j]) +*/ki * calcEi(mat, n.p, samplePoints[j]) + 
+					calcE2(mat, pointManager.getPointPos((*edgeItor)->getAnother(n.id)), n.p, samplePoints[i], samplePoints[j]);
 				if (tmp < min) {
 					min = tmp;
 				}
@@ -273,7 +272,7 @@ int *StructurePropagation::DP(const vector<PointPos> &samplePoints, vector<Point
 			// choose optimal x(i-1)
 			// x(i-1) = k
 			for (int k = 0; k < samplePoints.size(); k++) {
-				double tmp = calcE2(mat, samplePoints[j], samplePoints[k]) + M[preOffset + k];
+				double tmp = calcE2(mat, anchorPoints[i], anchorPoints[i-1], samplePoints[j], samplePoints[k]) + M[preOffset + k];
 				if (tmp < min) {
 					record[samplePoints.size()*i + j] = k;
 					min = tmp;
@@ -330,11 +329,13 @@ void StructurePropagation::SetParm(int _blocksize, int _samplestep, int _iscurve
 	this->isCurve = _iscurve;
 }
 
-double StructurePropagation::calcE2(const Mat &mat, const PointPos &i1, const PointPos &i2) {
+double StructurePropagation::calcE2(const Mat &mat, const PointPos &i1, const PointPos &i2, const PointPos &xi1, const PointPos &xi2) {
 	int colLeft1, colLeft2, colRight1, colRight2;
 	int rowUp1, rowUp2, rowDown1, rowDown2;
 	Point p1 = pointManager.getPoint(i1);
 	Point p2 = pointManager.getPoint(i2);
+	Point px1 = pointManager.getPoint(xi1);
+	Point px2 = pointManager.getPoint(xi2);
 	// calculate the relative offsets of overlapping area's bounderies
 	if (p1.x > p2.x) {
 		colLeft1 = 0;
@@ -366,10 +367,10 @@ double StructurePropagation::calcE2(const Mat &mat, const PointPos &i1, const Po
 		int cols = colRight1 - colLeft1;
 		int rows = rowDown1 - rowUp1;
 		// calculate the absolute cooordinates of boundaries
-		int xOffset1 = colLeft1 + p1.x - blockSize / 2;
-		int xOffset2 = colLeft2 + p2.x - blockSize / 2;
-		int yOffset1 = rowUp1 + p1.y - blockSize / 2;
-		int yOffset2 = rowUp2 + p2.y - blockSize / 2;
+		int xOffset1 = colLeft1 + px1.x - blockSize / 2;
+		int xOffset2 = colLeft2 + px2.x - blockSize / 2;
+		int yOffset1 = rowUp1 + px1.y - blockSize / 2;
+		int yOffset2 = rowUp2 + px2.y - blockSize / 2;
 		for (int i = 0; i < rows; i++) {
 			const uchar *ptr1 = mat.ptr<uchar>(i + yOffset1);
 			const uchar *ptr2 = mat.ptr<uchar>(i + yOffset2);
@@ -379,6 +380,9 @@ double StructurePropagation::calcE2(const Mat &mat, const PointPos &i1, const Po
 			}
 		}
 		// do normlization
+		if (ssd != 0) {
+			ssd += 0.0;
+		}
 		return ssd / (cols * rows);
 	}
 	else {

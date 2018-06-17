@@ -135,6 +135,9 @@ public:
 	int getPropstackSize() {
 		return propagationStack.size();
 	}
+	PointPos getPointPos(ushort id) {
+		return (*nodes[id])->p;
+	}
 
 private:
 	vector<vector<Point>> linePoints;

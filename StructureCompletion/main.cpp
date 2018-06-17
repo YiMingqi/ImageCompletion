@@ -91,8 +91,8 @@ int _tmain(int argc, _TCHAR* argv[])
 		}
 	}
 
-	for (int i = 100; i < 300 ; i++) {
-		for (int j = 100; j < 300; j++) {
+	for (int i = 100; i < 299; i++) {
+		for (int j = 100; j < 299; j++) {
 			img.at<Vec3b>(i, j) = Vec3b(0, 0, 0);
 		}
 	}
@@ -134,24 +134,31 @@ int _tmain(int argc, _TCHAR* argv[])
 					Wang_GetCurve(mousepoints[i], PointsList[i]);
 				}
 			}
-			/*PointsList.resize(3);
+			PointsList.resize(3);
 			for (int i = 50; i < 350; i++) {
 				PointsList[0].push_back(Point(i, 150));
 				PointsList[1].push_back(Point(i, 250));
 				PointsList[2].push_back(Point(200, i));
-			}*/
+			}
 			/*PointsList.resize(2);
 			for (int i = 50; i < 350; i++) {
 				PointsList[0].push_back(Point(i, 200));
 				PointsList[1].push_back(Point(200, i));
 			}*/
+			/*PointsList.resize(1);
+			for (int i = 50; i < 200; i++) {
+				PointsList[0].push_back(Point(i, 200));
+			}
+			for (int i = 200; i >= 50; i--) {
+				PointsList[0].push_back(Point(200, i));
+			}*/
+
 			for (int i = 0; i < PointsList.size(); i++) {
 				DrawPoints(PointsList[i], img, CV_RGB(255, 0, 0), 1);
 			}
 			SP.SetParm(blocksize,samplestep,iscurve);
 			SP.Run(mask,result,PointsList,Local_Result_Copy);
 			imshow("img", Local_Result_Copy);
-			// imshow("img", result_copy);
 			result.copyTo(result_copy);
 			PointsList.clear();
 			mousepoints.clear();
