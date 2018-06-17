@@ -26,6 +26,7 @@ void PointManager::reset(const vector<vector<Point>> &linePoints, const Mat1b &m
 	intersectingMap.clear();
 	nodes.clear();
 	propagationStack.clear();
+	Node::totalNum = 0;
 
 	// do preparation for the following operation
 	Mat visitMat = Mat::zeros(mask.rows, mask.cols, CV_32SC1);
@@ -142,7 +143,7 @@ void PointManager::getPointsinPatch(PointPos p, vector<Point> &ret) {
 	for (list<PointPos>::iterator p = pointPositions.begin(); p != pointPositions.end(); p++) {
 		Endpoints endPoints = lineEnds[p->lineIndex];
 		Point *points = &linePoints[endPoints.trueLineIndex][0];
-		int beginIndex;
+		int beginIndex = p->pointIndex;
 		//find the start index of the line segment
 		for (int i = p->pointIndex; i >= 0; i--) {
 			if (points[i].x < leftBound || points[i].y < upBound || points[i].x >= rightBound || points[i].y >= downBound) {
@@ -329,6 +330,9 @@ void PointManager::getPropstackReverseItor(list<shared_ptr<Node>>::reverse_itera
 }
 
 void PointManager::getSamplePoints(vector<PointPos> &samples, int sampleStep) {
+	if (lineEnds.size() == 0) {
+		return;
+	}
 	samples.clear();
 	int lineIndex = 0;
 	Endpoints endpoints = lineEnds[0];

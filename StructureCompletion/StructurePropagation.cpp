@@ -17,11 +17,18 @@ void StructurePropagation::Run(const Mat1b &_mask, const Mat& _img, vector<vecto
 	pointManager.reset(linePoints, grayMat, blockSize);
 	vector<PointPos> samplePoints;
 	pointManager.getSamplePoints(samplePoints, sampleStep);
+	// No enough sample points or anchor points
+	if (samplePoints.size() == 0){
+		return;
+	}
 
 	int *sampleIndices;
 	vector<PointPos> anchorPoints;
 	sampleIndices = DP(samplePoints, anchorPoints, grayMat);
 	// sampleIndices = BP(samplePoints, anchorPoints, grayMat);
+	for (int i = 0; i < anchorPoints.size(); i++) {
+		cout << sampleIndices[i] << ", ";
+	}
 	getResult(sampleIndices, samplePoints, anchorPoints, result);
 }
 
