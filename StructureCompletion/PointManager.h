@@ -17,20 +17,6 @@ public:
 	}
 };
 
-/*class MElement {
-public:
-	float value;
-	int xi;
-	MElement() {
-		value = 0;
-		xi = -1;
-	}
-	MElement(float value, int xi) {
-		this->value = value;
-		this->xi = xi;
-	}
-};*/
-
 class Edge;
 class Node {
 private:
@@ -124,11 +110,8 @@ public:
 	Point getPoint(PointPos p);
 	bool nearBoundary(PointPos p);
 	void getPointsinPatch(PointPos p, vector<Point> &ret);
-	Point *getLinePtr(int i, int *length);
-	int getLineNum();
 	void getSamplePoints(vector<PointPos> &samples, int sampleStep);
 	void constructBPMap();
-	unique_ptr<Node> getBPNext();
 	void getAnchorPoints(vector<PointPos> &anchors);
 	void getPropstackItor(list<shared_ptr<Node>>::iterator &begin, list<shared_ptr<Node>>::iterator &end);
 	void getPropstackReverseItor(list<shared_ptr<Node>>::reverse_iterator &begin, list<shared_ptr<Node>>::reverse_iterator &end);

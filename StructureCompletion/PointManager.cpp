@@ -17,6 +17,7 @@ bool operator==(const Edge &e1, const Edge &e2) {
 
 
 void PointManager::reset(const vector<vector<Point>> &linePoints, const Mat1b &mask, int blockSize) {
+	// clean up the remnant data
 	this->linePoints = linePoints;
 	this->mask = mask;
 	this->blockSize = blockSize;
@@ -26,9 +27,8 @@ void PointManager::reset(const vector<vector<Point>> &linePoints, const Mat1b &m
 	nodes.clear();
 	propagationStack.clear();
 
+	// do preparation for the following operation
 	Mat visitMat = Mat::zeros(mask.rows, mask.cols, CV_32SC1);
-
-	// record lines crossing the mask area and the patch center points near boundary
 	bool inMask = false;
 	Endpoints endpoints;
 	for (int j = 0; j < linePoints.size(); j++) {
@@ -40,6 +40,7 @@ void PointManager::reset(const vector<vector<Point>> &linePoints, const Mat1b &m
 				continue;
 			}
 			else if (mask.at<uchar>(y, x)) {
+				// current line get out of the mask area, end this line
 				if (inMask == true) {
 					endpoints.endIndex = i;
 					lineEnds.push_back(endpoints);
@@ -47,9 +48,11 @@ void PointManager::reset(const vector<vector<Point>> &linePoints, const Mat1b &m
 				}
 			}
 			else {
+				// current patch crosses the boundary between img and mask
 				if (nearBoundary(linePoints[j][i], false)) {
 					boundaryPoints.insert(PointPos(lineEnds.size(), i));
 				}
+				// current line get into mask area, start a new line
 				if (inMask == false) {
 					endpoints.startIndex = i;
 					endpoints.trueLineIndex = j;
@@ -58,7 +61,9 @@ void PointManager::reset(const vector<vector<Point>> &linePoints, const Mat1b &m
 				int visitRecord = visitMat.at<int>(y, x);
 				int lineIndex = getLineIndex(visitRecord);
 				int pointIndex = getPointIndex(visitRecord);
+				// check if this point is an intersection
 				if (visitRecord != 0 && lineIndex != lineEnds.size()) {
+					// record the position info of overlapping points in the intersectingMap
 					list<PointPos> *intersectingList = &intersectingMap[calcHashValue(x, y)];
 					if (intersectingList->size() == 0) {
 						intersectingList->push_back(PointPos(lineIndex, pointIndex));
@@ -66,10 +71,12 @@ void PointManager::reset(const vector<vector<Point>> &linePoints, const Mat1b &m
 					intersectingList->push_back(PointPos(lineEnds.size(), i));
 				}
 				else {
+					// mark the point as visited
 					visitMat.at<int>(y, x) = visit(lineEnds.size(), i);
 				}
 			}
 		}
+		// cope with the situation where line ends in mask area
 		if (inMask == true) {
 			inMask = false;
 			endpoints.endIndex = i;
@@ -85,11 +92,13 @@ bool PointManager::nearBoundary(const Point &p, bool isSample) {
 	int downBound = MIN(p.y + blockSize - blockSize / 2, mask.rows);
 	const uchar *upPtr = mask.ptr<uchar>(upBound);
 	const uchar *downPtr = mask.ptr<uchar>(downBound - 1);
+	// check if the mask boundary crosses up and down boundary of the patch
 	for (int i = leftBound; i < rightBound; i++) {
 		if (!upPtr[i] == isSample || !downPtr[i] == isSample) {
 			return true;
 		}
 	}
+	// check if the mask boundary crosses left and right boundary of the patch
 	for (int i = upBound + 1; i < downBound - 1; i++) {
 		if (!mask.at<uchar>(i, leftBound) == isSample || !mask.at<uchar>(i, rightBound - 1) == isSample) {
 			return true;
@@ -99,18 +108,22 @@ bool PointManager::nearBoundary(const Point &p, bool isSample) {
 }
 
 inline int PointManager::calcHashValue(int x, int y) {
+	// calculate the hash value of the visitedMap
 	return x + y * mask.cols;
 }
 
 inline Point PointManager::getPoint(PointPos p) {
+	//get Point Object by PointPos object
 	return linePoints[lineEnds[p.lineIndex].trueLineIndex][p.pointIndex];
 }
 
 bool PointManager::nearBoundary(PointPos p) {
+	// check if the patch crosses the boundary
 	return boundaryPoints.count(p);
 }
 
 void PointManager::getPointsinPatch(PointPos p, vector<Point> &ret) {
+	// get all points of the line segment contained in this patch
 	Point center = getPoint(p);
 	int leftBound = MAX(center.x - blockSize / 2, 0);
 	int rightBound = MIN(center.x + blockSize - blockSize / 2, mask.cols);
@@ -118,6 +131,8 @@ void PointManager::getPointsinPatch(PointPos p, vector<Point> &ret) {
 	int downBound = MIN(center.y + blockSize - blockSize / 2, mask.rows);
 	int hashValue = calcHashValue(center.x, center.y);
 	list<PointPos> pointPositions;
+	// check if the the anchor point is an intersaction
+	// if it is, points of sevaral line segments will be returned
 	if (intersectingMap.count(hashValue)) {
 		pointPositions = intersectingMap[hashValue];
 	}
@@ -128,15 +143,18 @@ void PointManager::getPointsinPatch(PointPos p, vector<Point> &ret) {
 		Endpoints endPoints = lineEnds[p->lineIndex];
 		Point *points = &linePoints[endPoints.trueLineIndex][0];
 		int beginIndex;
+		//find the start index of the line segment
 		for (int i = p->pointIndex; i >= 0; i--) {
 			if (points[i].x < leftBound || points[i].y < upBound || points[i].x >= rightBound || points[i].y >= downBound) {
 				beginIndex = i + 1;
 				break;
 			}
 		}
+		// get anchor points forward
 		for (int i = beginIndex; i < p->pointIndex; i++) {
 			ret.push_back(points[i]);
 		}
+		// get anchor points backward
 		for (int i = p->pointIndex; i < linePoints[endPoints.trueLineIndex].size(); i++) {
 			if (points[i].x < leftBound || points[i].y < upBound || points[i].x >= rightBound || points[i].y >= downBound) {
 				break;
@@ -146,19 +164,6 @@ void PointManager::getPointsinPatch(PointPos p, vector<Point> &ret) {
 			}
 		}
 	}
-}
-
-int PointManager::getLineNum() {
-	return lineEnds.size();
-}
-
-Point *PointManager::getLinePtr(int i, int *length) {
-	if (i >= lineEnds.size()) {
-		return NULL;
-	}
-	Endpoints endPoints = lineEnds[i];
-	*length = endPoints.endIndex - endPoints.startIndex;
-	return &linePoints[endPoints.trueLineIndex][endPoints.startIndex];
 }
 
 void PointManager::constructBPMap() {
@@ -257,116 +262,6 @@ void PointManager::constructBPMap() {
 	i++;
 }
 
-/* void PointManager::constructBPMap() {
-	map<int, list<PointPos>>::iterator mapItor;
-	list<Node> BFSstack;
-	vector<vector<ushort>> pointVisitedMarks;
-	pointVisitedMarks.resize(linePoints.size());
-	for (int i = 0; i < linePoints.size(); i++) {
-		pointVisitedMarks[i].resize(linePoints[i].size());
-	}
-	nodeListBucket.resize(4);
-	int total = 0;
-	for (int i = 0; i < linePoints.size(); i++) {
-		total += linePoints[i].size();
-	}
-	nodeList.reserve(total / blockSize);
-	nodeList.resize(1);
-
-	int *lineVisitedMarks = (int*)malloc(lineEnds.size() * sizeof(int));
-	for (mapItor = intersectingMap.begin(); mapItor != intersectingMap.end(); mapItor++) {
-		BFSstack.push_back(Node(*(mapItor->second.begin())));
-		//预着色,用于处理两个不同位置的交点patch重叠的情况
-		list<PointPos>::iterator listItor = mapItor->second.begin();
-		for (; listItor != mapItor->second.end(); listItor++) {
-			pointVisitedMarks[lineEnds[listItor->lineIndex].trueLineIndex][listItor->pointIndex] = Node::totalNum;
-			lineVisitedMarks[listItor->lineIndex] = 1;
-		}
-		if (2 * mapItor->second.size() > nodeListBucket.size()) {
-			nodeListBucket.resize(2 * mapItor->second.size());
-		}
-	}
-
-	for (mapItor = intersectingMap.begin(); mapItor != intersectingMap.end(); mapItor++) {
-		list<PointPos>::iterator listItor = mapItor->second.begin();
-		for (; listItor != mapItor->second.end(); listItor++) {
-			addNeighbor(*BFSstack.begin(), *listItor, pointVisitedMarks, BFSstack);
-		}
-		BFSstack.pop_front();
-	}
-
-	while (BFSstack.size()) {
-		list<Node>::iterator itor = BFSstack.begin();
-		addNeighbor(*itor, itor->p, pointVisitedMarks, BFSstack);
-		BFSstack.pop_front();
-	}
-
-	Edge edge;
-	for (int i = 0; i < lineEnds.size(); i++) {
-		if (lineVisitedMarks[i] == 0) {
-			Endpoints endPoints = lineEnds[i];
-			int endIndex = endPoints.endIndex - blockSize / 2;
-			for (int j = endPoints.startIndex; j < endIndex; j += blockSize / 2) {
-				Node tmpNode = Node(PointPos(i, j));
-				if (edge.ni > 0) {
-					tmpNode.insertEdge(edge);
-				}
-				edge.ni = tmpNode.id;
-				edge.nj = tmpNode.id + 1;
-				tmpNode.insertEdge(edge);
-				nodeListBucket[tmpNode.getEdgeNum() - 1].push_front(tmpNode);
-			}
-		}
-	}
-
-	free(lineVisitedMarks);
-
-}*/
-
-/*void PointManager::addNeighbor(Node &n, const PointPos &pos, vector<vector<ushort>> &visitedMark, list<Node> &BFSstack) {
-	Endpoints endpoints = lineEnds[pos.lineIndex];
-	int lineIndex = endpoints.trueLineIndex;
-	int pointIndex = pos.pointIndex;
-	int prePointIndex = pointIndex - blockSize / 2;
-	int nextPointIndex = pointIndex + blockSize / 2;
-	int bucketEntry = n.getEdgeNum() - 1;
-	if (prePointIndex >= endpoints.startIndex) {
-		int i;
-		for (i = pointIndex - 1; i >= prePointIndex; i--) {
-			if (visitedMark[lineIndex][i] && nodeList.size() > visitedMark[lineIndex][i]) {
-				Edge tmpEdge(n.id, visitedMark[lineIndex][i]);
-				n.insertEdge(tmpEdge);
-				nodeList[visitedMark[lineIndex][i]]->insertEdge(tmpEdge);
-				break;
-			}
-		}
-		if (i == prePointIndex - 1) {
-			BFSstack.push_back(Node(PointPos(lineIndex, prePointIndex)));
-			visitedMark[lineIndex][i] = Node::totalNum;
-		}
-		bucketEntry++;
-	}
-	if (nextPointIndex < endpoints.endIndex) {
-		int i;
-		for (i = pointIndex + 1; i <= nextPointIndex; i++) {
-			if (visitedMark[lineIndex][i] && nodeList.size() > visitedMark[lineIndex][i]) {
-				Edge tmpEdge(n.id, visitedMark[lineIndex][i]);
-				n.insertEdge(tmpEdge);
-				nodeList[visitedMark[lineIndex][i]]->insertEdge(tmpEdge);
-				break;
-			}
-		}
-		if (i == nextPointIndex + 1) {
-			BFSstack.push_back(Node(PointPos(lineIndex, nextPointIndex)));
-			visitedMark[lineIndex][i] = Node::totalNum;
-		}
-		bucketEntry++;
-	}
-	nodeListBucket[bucketEntry].push_front(n);
-	nodeList.push_back(nodeListBucket[bucketEntry].begin());
-}*/
-
-
 int PointManager::addNeighbor(Node &n, const PointPos &pos, vector<vector<ushort>> &visitedMark, list<shared_ptr<Node>> &BFSstack) {
 	Endpoints endpoints = lineEnds[pos.lineIndex];
 	int lineIndex = endpoints.trueLineIndex;
@@ -433,34 +328,12 @@ void PointManager::getPropstackReverseItor(list<shared_ptr<Node>>::reverse_itera
 	end = list<shared_ptr<Node>>::reverse_iterator(propagationStack.begin());
 }
 
-unique_ptr<Node> PointManager::getBPNext() {
-	/*if (nodeListBucket[0].size() > 0) {
-		list<Node>::iterator itor = nodeListBucket[0].begin();
-		assert(itor->getEdgeNum() == 1);
-		list<Edge> e;
-		itor->getEdges(e);
-		list<Edge>::iterator eItor = e.begin();
-		int id = (eItor->ni == itor->id) ? eItor->nj : eItor->ni;
-		int edgeNum = nodeList[id]->getEdgeNum();
-		nodeList[id]->eraseEdge(eItor);
-		Node tmpNode = *nodeList[id];
-		nodeListBucket[edgeNum - 1].erase(nodeList[id]);
-		nodeListBucket[edgeNum - 2].push_front(tmpNode);
-		nodeList[id] = nodeListBucket[edgeNum - 2].begin();
-		nodeListBucket[0].pop_front();
-		unique_ptr<Node> ret(new Node(*itor));
-		return ret;
-	}
-	else {
-		return NULL;
-	}*/
-	return NULL;
-}
-
 void PointManager::getSamplePoints(vector<PointPos> &samples, int sampleStep) {
 	samples.clear();
 	int lineIndex = 0;
 	Endpoints endpoints = lineEnds[0];
+
+	// reserve enough space for samples
 	int total = 0;
 	for (int i = 0; i < linePoints.size(); i++) {
 		total += linePoints[i].size();
@@ -469,8 +342,12 @@ void PointManager::getSamplePoints(vector<PointPos> &samples, int sampleStep) {
 		total -= (lineEnds[i].endIndex - lineEnds[i].startIndex);
 	}
 	samples.reserve(total / sampleStep);
+
+	// get samples from all line segments outside the mask area
+	// sampling step = sampleStep
 	for (int i = 0; i < linePoints.size(); i++) {
-		int beginIndex = blockSize; //ensure all samples have complete line segments
+		// +blocksize: ensure all samples have complete line segments
+		int beginIndex = blockSize;
 		int endIndex;
 		while (endpoints.trueLineIndex == i) {
 			endIndex = endpoints.startIndex;
@@ -490,7 +367,8 @@ void PointManager::getSamplePoints(vector<PointPos> &samples, int sampleStep) {
 			}
 			endpoints = lineEnds[lineIndex];
 		}
-		endIndex = linePoints[i].size() - blockSize; //ensure all samples have complete line segments
+		// -blocksize: ensure all samples have complete line segments
+		endIndex = linePoints[i].size() - blockSize;
 		for (int j = endIndex - 1; j >= beginIndex; j -= sampleStep) {
 			if (!nearBoundary(linePoints[i][j], true)) {
 				samples.push_back(PointPos(lineIndex - 1, j));
@@ -501,14 +379,21 @@ void PointManager::getSamplePoints(vector<PointPos> &samples, int sampleStep) {
 }
 
 void PointManager::getAnchorPoints(vector<PointPos> &anchors) {
+	// only called by DP 
+	// BP get anchor points by calling constructBPMap and getPropstackItor sequentially
 	anchors.clear();
 	int lineIndex = 0;
 	Endpoints endpoints = lineEnds[0];
+
+	// reserve enough space for anchors
 	int total = 0;
 	for (int i = 0; i < lineEnds.size(); i++) {
 		total += (lineEnds[i].endIndex - lineEnds[i].startIndex);
 	}
 	anchors.reserve(total / (blockSize / 2));
+
+	// get anchors from all iline segments inside the mask area
+	// sampling step = blockSize / 2
 	for (int i = 0; i < linePoints.size(); i++) {
 		while (endpoints.trueLineIndex == i) {
 			for (int j = endpoints.startIndex; j < endpoints.endIndex; j += blockSize / 2) {

@@ -74,33 +74,10 @@ int _tmain(int argc, _TCHAR* argv[])
 	// img=imread("img.jpg",1);
 	// mask=imread("mask.bmp",0);
 
-	Mat img = Mat(400, 400, CV_8UC3);
-	for (int i = 0; i < 400; i++) {
-		for (int j = 0; j < 400; j++) {
-			img.at<Vec3b>(i, j) = Vec3b(255, 255, 255);
-		}
-	}
-	for (int i = 190; i < 210; i++) {
-		for (int j = 0; j < 400; j++) {
-			img.at<Vec3b>(i, j) = Vec3b(0, 0 , 255);
-		}
-	}
-	for (int i = 0; i < 400; i++) {
-		for (int j = 190; j < 210; j++) {
-			img.at<Vec3b>(i, j) = Vec3b(255, 0, 0);
-		}
-	}
+	img=imread("K.png",1);
+	mask=imread("K.bmp",0);
 
-	for (int i = 100; i < 299; i++) {
-		for (int j = 100; j < 299; j++) {
-			img.at<Vec3b>(i, j) = Vec3b(0, 0, 0);
-		}
-	}
-
-	//img=imread("curve_test1.png",1);
-	//mask=imread("curve_test1.bmp",0);
-
-	// threshold(mask,mask,125,255,CV_THRESH_BINARY_INV);
+	threshold(mask,mask,125,255,CV_THRESH_BINARY_INV);
 	result.zeros(img.size());
 	img.copyTo(result,mask);
 	namedWindow("img");
@@ -134,24 +111,6 @@ int _tmain(int argc, _TCHAR* argv[])
 					Wang_GetCurve(mousepoints[i], PointsList[i]);
 				}
 			}
-			PointsList.resize(3);
-			for (int i = 50; i < 350; i++) {
-				PointsList[0].push_back(Point(i, 150));
-				PointsList[1].push_back(Point(i, 250));
-				PointsList[2].push_back(Point(200, i));
-			}
-			/*PointsList.resize(2);
-			for (int i = 50; i < 350; i++) {
-				PointsList[0].push_back(Point(i, 200));
-				PointsList[1].push_back(Point(200, i));
-			}*/
-			/*PointsList.resize(1);
-			for (int i = 50; i < 200; i++) {
-				PointsList[0].push_back(Point(i, 200));
-			}
-			for (int i = 200; i >= 50; i--) {
-				PointsList[0].push_back(Point(200, i));
-			}*/
 
 			for (int i = 0; i < PointsList.size(); i++) {
 				DrawPoints(PointsList[i], img, CV_RGB(255, 0, 0), 1);
@@ -159,7 +118,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			SP.SetParm(blocksize,samplestep,iscurve);
 			SP.Run(mask,result,PointsList,Local_Result_Copy);
 			imshow("img", Local_Result_Copy);
-			result.copyTo(result_copy);
+			Local_Result_Copy.copyTo(result_copy);
 			PointsList.clear();
 			mousepoints.clear();
 		}

@@ -13,23 +13,22 @@ void StructurePropagation::Run(const Mat1b &_mask, const Mat& _img, vector<vecto
 		}
 	}
 
+	// pointManager = PointManager();
 	pointManager.reset(linePoints, grayMat, blockSize);
 	vector<PointPos> samplePoints;
 	pointManager.getSamplePoints(samplePoints, sampleStep);
 
 	int *sampleIndices;
 	vector<PointPos> anchorPoints;
-	// sampleIndices = DP(samplePoints, anchorPoints, grayMat);
-	sampleIndices = BP(samplePoints, anchorPoints, grayMat);
+	sampleIndices = DP(samplePoints, anchorPoints, grayMat);
+	// sampleIndices = BP(samplePoints, anchorPoints, grayMat);
 	getResult(sampleIndices, samplePoints, anchorPoints, result);
 }
 
 void StructurePropagation::getResult(int *sampleIndices, const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, Mat& result) {
+	// copy all sample patches to corresponding anchor pathces
 	int offset1 = blockSize / 2;
 	int offset2 = blockSize - offset1;
-	for (int i = 0; i < anchorPoints.size(); i++) {
-		cout << sampleIndices[i] << ", ";
-	}
 	for (int i = 0; i < anchorPoints.size(); i++) {
 		Point src = pointManager.getPoint(samplePoints[sampleIndices[i]]);
 		Point tar = pointManager.getPoint(anchorPoints[i]);
@@ -119,119 +118,23 @@ int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<Point
 	return sampleIndices;
 }
 
-/*int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, const Mat &mat) {
-	pointManager.constructBPMap();
-	unique_ptr<Node> n;
-	list<Node> reverseStack;
-	while (n = pointManager.getBPNext()) {
-		// calcMij(*n, mat, samplePoints);
-		list<Edge> edges;
-		n->getEdges(edges);
-		list<Edge>::iterator edgeItor = edges.begin();
-		double **Mptr = edgeItor->getMbyFrom(n->id);
-		*Mptr = (double*)malloc(samplePoints.size() * sizeof(Mptr));
-		double value = 0;
-		for (int i = 0; i < samplePoints.size(); i++) {
-			double min = INT_MAX;
-			for (int j = 0; j < samplePoints.size(); j++) {
-				double tmp = ks * calcEs(n->p, samplePoints[j]) +
-					ki * calcEi(mat, n->p, samplePoints[j]) + calcE2(mat, samplePoints[i], samplePoints[j]);
-				if (tmp < min) {
-					min = tmp;
-				}
-			}
-			(*Mptr)[i] = min;
-		}
-		for (edgeItor++; edgeItor != edges.end(); edgeItor++) {
-			double **tmpMptr = edgeItor->getMbyTo(n->id);
-			for (int i = 0; i < samplePoints.size(); i++) {
-				(*Mptr)[i] += (*tmpMptr)[i];
-			}
-		}
-		reverseStack.push_back(*n);
-	}
-
-	int *sampleIndices = (int*)malloc(anchorPoints.size() * sizeof(int));
-	double *cur = (double*)malloc(samplePoints.size() * sizeof(double));
-	reverseStack.reverse();
-	list<Node>::iterator itor = reverseStack.begin();
-	for (; itor != reverseStack.end(); itor++) {
-		calcMij(*itor, mat, samplePoints);
-		list<Edge> edges;
-		n->getEdges(edges);
-		int minIndex;
-		double min;
-		for (int i = 0; i < samplePoints.size(); i++) {
-			cur[i] = cur[i] = ks * calcEs(n->p, samplePoints[i]) + ki * calcEi(mat, n->p, samplePoints[i]);
-		}
-		for (list<Edge>::iterator edgeItor = edges.begin(); edgeItor != edges.end(); edgeItor++) {
-			double **toMptr = edgeItor->getMbyTo(itor->id);
-			for (int i = 0; i < samplePoints.size(); i++) {
-				cur[i] += (*toMptr)[i];
-			}
-			free(*toMptr);
-		}
-		for (int i = 0; i < samplePoints.size(); i++) {
-			if (cur[i] < min) {
-				min = cur[i];
-				minIndex = i;
-			}
-		}
-		sampleIndices[itor->id] = minIndex;
-	}
-	free(cur);
-	return sampleIndices;
-}*/
-
-
-/*void StructurePropagation::calcMij(Node &n, const Mat &mat, const vector<PointPos> &samplePoints) {
-	list<Edge> edges;
-	list<Edge>::iterator edgeItor;
-	n.getEdges(edges);
-	for (edgeItor = edges.begin(); edgeItor != edges.end(); edgeItor++) {
-		double **Mptr = edgeItor->getMbyFrom(n.id);
-		int calculable = 1;
-		if (*Mptr == NULL && calculable) {
-			*Mptr = (double*)malloc(samplePoints.size() * sizeof(double));
-			for (int i = 0; i < samplePoints.size(); i++) {
-				double min = INT_MAX;
-				for (int j = 0; j < samplePoints.size(); j++) {
-					double tmp = ks * calcEs(n.p, samplePoints[j]) +
-						ki * calcEi(mat, n.p, samplePoints[j]) + calcE2(mat, samplePoints[i], samplePoints[j]);
-					if (tmp < min) {
-						min = tmp;
-					}
-				}
-				(*Mptr)[i] = min;
-			}
-			list<Edge>::iterator tmpItor = edges.begin();
-			for (; tmpItor != edges.end(); tmpItor++) {
-				if (tmpItor != edgeItor) {
-					double **toMptr = tmpItor->getMbyTo(n.id);
-					for (int i = 0; i < samplePoints.size(); i++) {
-						(*Mptr)[i] += (*toMptr)[i];
-					}
-				}
-			}
-		}
-	}
-}*/
-
 void StructurePropagation::calcMij(Node &n, const list<shared_ptr<Edge>>::iterator &edgeItor, const Mat &mat, const vector<PointPos> &samplePoints) {
 	double **Mptr = (*edgeItor)->getMbyFrom(n.id);
 	if (*Mptr == NULL) {
 		*Mptr = (double*)malloc(samplePoints.size() * sizeof(double));
 		for (int i = 0; i < samplePoints.size(); i++) {
-			double min = INT_MAX;
+			// calcalate Ei beforehand
+			double E1 = ks * calcEs(n.p, samplePoints[i]) + ki * calcEi(mat, n.p, samplePoints[i]);
+			PointPos tmpPos = pointManager.getPointPos((*edgeItor)->getAnother(n.id));
 			for (int j = 0; j < samplePoints.size(); j++) {
-				double tmp = /*ks * calcEs(n.p, samplePoints[j]) +*/ki * calcEi(mat, n.p, samplePoints[j]) + 
-					calcE2(mat, pointManager.getPointPos((*edgeItor)->getAnother(n.id)), n.p, samplePoints[i], samplePoints[j]);
-				if (tmp < min) {
-					min = tmp;
+				// try updating tne minimal value of each item in Mij
+				double E2 = calcE2(mat, tmpPos, n.p, samplePoints[i], samplePoints[j]);
+				if (E1 + E2 < (*Mptr)[j]) {
+					(*Mptr)[j] = E1 + E2;
 				}
 			}
-			(*Mptr)[i] = min;
 		}
+		// add up the message sent from Mki (k != j)
 		list<shared_ptr<Edge>>::iterator itor = n.getEdgeBegin();
 		list<shared_ptr<Edge>>::iterator end = n.getEdgeEnd();
 		for (; itor != end; itor++) {
@@ -272,7 +175,7 @@ int *StructurePropagation::DP(const vector<PointPos> &samplePoints, vector<Point
 			// choose optimal x(i-1)
 			// x(i-1) = k
 			for (int k = 0; k < samplePoints.size(); k++) {
-				double tmp = calcE2(mat, anchorPoints[i], anchorPoints[i-1], samplePoints[j], samplePoints[k]) + M[preOffset + k];
+				double tmp = calcE2(mat, anchorPoints[i], anchorPoints[i - 1], samplePoints[j], samplePoints[k]) + M[preOffset + k];
 				if (tmp < min) {
 					record[samplePoints.size()*i + j] = k;
 					min = tmp;
@@ -280,27 +183,9 @@ int *StructurePropagation::DP(const vector<PointPos> &samplePoints, vector<Point
 			}
 			M[curOffset + j] = E1 + min;
 		}
-		/*for (int j = 0; j < samplePoints.size(); j++) {
-			cout << M[preOffset + j] << ", ";
-		}
-		cout << endl;
-		for (int j = 0; j < samplePoints.size(); j++) {
-			cout << M[curOffset + j] << ", ";
-		}
-		cout << endl;
-		for (int j = 0; j < samplePoints.size(); j++) {
-			cout << record[samplePoints.size()*i + j] << ", ";
-		}
-		cout << endl << "-------------------------------------------" << endl;*/
 	}
 
-	/*for (int i = 1; i < anchorPoints.size(); i++) {
-		for (int j = 0; j < samplePoints.size(); j++) {
-			cout << record[samplePoints.size()*i + j] << ", ";
-		}
-		cout << endl;
-	}*/
-
+	// find out the optimal xi of last anchor point
 	int *sampleIndices = (int*)malloc(anchorPoints.size() * sizeof(int));
 	double min = INT_MAX;
 	for (int j = 0; j < samplePoints.size(); j++) {
@@ -309,13 +194,10 @@ int *StructurePropagation::DP(const vector<PointPos> &samplePoints, vector<Point
 		}
 	}
 
+	// trace back
 	for (int i = anchorPoints.size() - 2; i >= 0; i--) {
 		sampleIndices[i] = record[samplePoints.size()*(i + 1) + sampleIndices[i + 1]];
 	}
-
-	/*for (int i = 0; i < anchorPoints.size(); i++) {
-		cout << sampleIndices[i] << ", ";
-	}*/
 
 	free(M);
 	free(record);
