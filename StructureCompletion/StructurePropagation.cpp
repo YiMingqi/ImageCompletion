@@ -389,7 +389,7 @@ double StructurePropagation::calcE2(const Mat &mat, const PointPos &i1, const Po
 
 double StructurePropagation::calcEs(const PointPos &i, const PointPos &xi) {
 	if (isCurve) {
-		static vector<Point> points1(30), points2(30);
+		vector<Point> points1(30), points2(30);
 		vector<int> minDistance1, minDistance2;
 		Point pi = pointManager.getPoint(i);
 		Point pxi = pointManager.getPoint(xi);

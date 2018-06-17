@@ -51,9 +51,9 @@ public:
 		edges.push_back(e);
 		edgeNum++;
 	}
-	void eraseEdge(list<shared_ptr<Edge>>::iterator &itor) {
-		edges.erase(itor);
-		edges.push_back(*itor);
+	void eraseEdge(shared_ptr<Edge> &e) {
+		edges.remove(e);
+		edges.push_back(e);
 		edgeNum--;
 	}
 	list<shared_ptr<Edge>>::iterator getEdgeBegin() {
@@ -143,14 +143,11 @@ private:
 	vector<Endpoints> lineEnds;
 	set<PointPos> boundaryPoints;
 	map<int, list<PointPos>> intersectingMap;
-	vector<list<Node>> nodeListBucket;
-	void constructMap();
-	vector<list<Node>::iterator> nodeList;
-	vector<shared_ptr<Node>> nodes;
+	vector<list<shared_ptr<Node>>::iterator> nodes;
 	list<shared_ptr<Node>> propagationStack;
 
 	bool nearBoundary(const Point &p, bool isSample);
 	int calcHashValue(int x, int y);
 	void addNeighbor(Node &n, const PointPos &pos, vector<vector<ushort>> &visitedMark, list<Node> &BFSstack);
-	void getNeighbor(Node &n, const PointPos &pos, vector<vector<ushort>> &visitedMark, list<shared_ptr<Node>> &neighbors);
+	int addNeighbor(Node &n, const PointPos &pos, vector<vector<ushort>> &visitedMark, list<shared_ptr<Node>> &neighbors);
 };

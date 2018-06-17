@@ -23,7 +23,6 @@ void PointManager::reset(const vector<vector<Point>> &linePoints, const Mat1b &m
 	lineEnds.clear();
 	boundaryPoints.clear();
 	intersectingMap.clear();
-	nodeListBucket.clear();
 
 	Mat visitMat = Mat::zeros(mask.rows, mask.cols, CV_32SC1);
 
@@ -164,6 +163,7 @@ void PointManager::constructBPMap() {
 	map<int, list<PointPos>>::iterator mapItor;
 	list<shared_ptr<Node>> BFSstack;
 	vector<vector<ushort>> pointVisitedMarks(linePoints.size());
+	vector<list<shared_ptr<Node>>> nodeListBucket(4);
 
 	// initialize the visit map
 	pointVisitedMarks.resize(linePoints.size());
@@ -209,22 +209,50 @@ void PointManager::constructBPMap() {
 	for (mapItor = intersectingMap.begin(); mapItor != intersectingMap.end(); mapItor++) {
 		shared_ptr<Node> n = *BFSstack.begin();
 		list<PointPos>::iterator listItor = mapItor->second.begin();
+		int neighborNum = 0;
 		for (; listItor != mapItor->second.end(); listItor++) {
-			getNeighbor(*n, *listItor, pointVisitedMarks, BFSstack);
+			neighborNum += addNeighbor(*n, *listItor, pointVisitedMarks, BFSstack);
 		}
-		propagationStack.push_front(n);
-		nodes.push_back(n);
+		// Enlarge nodeListBucket if necessary
+		if (neighborNum > nodeListBucket.size()) {
+			nodeListBucket.resize(mapItor->second.size() * 2);
+		}
+		nodeListBucket[neighborNum - 1].push_front(n);
+		nodes.push_back(nodeListBucket[neighborNum - 1].begin());
 		BFSstack.pop_front();
 	}
 
 	// start propagation
 	while (BFSstack.size()) {
 		shared_ptr<Node> n = *BFSstack.begin();
-		getNeighbor(*n, n->p, pointVisitedMarks, BFSstack);
-		propagationStack.push_front(n);
-		nodes.push_back(n);
+		int neighborNum = addNeighbor(*n, n->p, pointVisitedMarks, BFSstack);
+		nodeListBucket[neighborNum - 1].push_front(n);
+		nodes.push_back(nodeListBucket[neighborNum - 1].begin());
 		BFSstack.pop_front();
 	}
+
+	//generate the sequence for message sending
+	while (nodeListBucket[0].size() > 0) {
+		list<shared_ptr<Node>>::iterator itor = nodeListBucket[0].begin();
+		assert((*itor)->getEdgeNum() == 1);
+		list<shared_ptr<Edge>>::iterator eItor = (*itor)->getEdgeBegin();
+		int id = (*eItor)->getAnother((*itor)->id);
+		propagationStack.push_back(*itor);
+		nodeListBucket[0].pop_front();
+		shared_ptr<Node> n = *nodes[id];
+		int edgeNum = n->getEdgeNum();
+		n->eraseEdge(*eItor);
+		nodeListBucket[edgeNum - 1].erase(nodes[id]);
+		if (edgeNum > 1) {
+			nodes[id] = nodeListBucket[edgeNum - 2].insert(nodeListBucket[edgeNum - 2].end(), n);
+		}
+		else {
+			propagationStack.push_back(n);
+		}
+	}
+
+	int i = 0;
+	i++;
 }
 
 /* void PointManager::constructBPMap() {
@@ -337,23 +365,26 @@ void PointManager::constructBPMap() {
 }*/
 
 
-void PointManager::getNeighbor(Node &n, const PointPos &pos, vector<vector<ushort>> &visitedMark, list<shared_ptr<Node>> &BFSstack) {
+int PointManager::addNeighbor(Node &n, const PointPos &pos, vector<vector<ushort>> &visitedMark, list<shared_ptr<Node>> &BFSstack) {
 	Endpoints endpoints = lineEnds[pos.lineIndex];
 	int lineIndex = endpoints.trueLineIndex;
 	int pointIndex = pos.pointIndex;
 	int prePointIndex = pointIndex - blockSize / 2;
 	int nextPointIndex = pointIndex + blockSize / 2;
+	int neighborNum = 0;
 
 	// check the point before current anchor point
 	if (prePointIndex >= endpoints.startIndex) {
 		int i;
 		// try choosing a existed anchor point as its neighbor
 		for (i = prePointIndex; i < pointIndex; i++) {
-			if (visitedMark[lineIndex][i] && nodes.size() > visitedMark[lineIndex][i]) {
-				// add an edge between two points
-				shared_ptr<Edge> tmpEdge = make_shared<Edge>(n.id, visitedMark[lineIndex][i]);
-				n.push_front(tmpEdge);
-				nodes[visitedMark[lineIndex][i]]->push_back(tmpEdge);
+			if (visitedMark[lineIndex][i]) {
+				if (nodes.size() > visitedMark[lineIndex][i]) {
+					// add an edge between two points
+					shared_ptr<Edge> tmpEdge = make_shared<Edge>(n.id, visitedMark[lineIndex][i]);
+					n.push_front(tmpEdge);
+					(*nodes[visitedMark[lineIndex][i]])->push_back(tmpEdge);
+				}
 				break;
 			}
 		}
@@ -362,6 +393,7 @@ void PointManager::getNeighbor(Node &n, const PointPos &pos, vector<vector<ushor
 			BFSstack.push_back(make_shared<Node>(PointPos(lineIndex, prePointIndex)));
 			visitedMark[lineIndex][prePointIndex] = Node::totalNum;
 		}
+		neighborNum++;
 	}
 
 	// check the point behind current anchor point
@@ -369,11 +401,13 @@ void PointManager::getNeighbor(Node &n, const PointPos &pos, vector<vector<ushor
 		int i;
 		// try choosing a existed anchor point as its neighbor
 		for (i = nextPointIndex; i > pointIndex; i--) {
-			if (visitedMark[lineIndex][i] && nodes.size() > visitedMark[lineIndex][i]) {
-				// add an edge between two points
-				shared_ptr<Edge> tmpEdge = make_shared<Edge>(n.id, visitedMark[lineIndex][i]);
-				n.push_front(tmpEdge);
-				nodes[visitedMark[lineIndex][i]]->push_back(tmpEdge);
+			if (visitedMark[lineIndex][i]) {
+				if (nodes.size() > visitedMark[lineIndex][i]) {
+					// add an edge between two points
+					shared_ptr<Edge> tmpEdge = make_shared<Edge>(n.id, visitedMark[lineIndex][i]);
+					n.push_front(tmpEdge);
+					(*nodes[visitedMark[lineIndex][i]])->push_back(tmpEdge);
+				}
 				break;
 			}
 		}
@@ -382,7 +416,9 @@ void PointManager::getNeighbor(Node &n, const PointPos &pos, vector<vector<ushor
 			BFSstack.push_back(make_shared<Node>(PointPos(lineIndex, nextPointIndex)));
 			visitedMark[lineIndex][nextPointIndex] = Node::totalNum;
 		}
+		neighborNum++;
 	}
+	return neighborNum;
 }
 
 void PointManager::getPropstackItor(list<shared_ptr<Node>>::iterator &begin, list<shared_ptr<Node>>::iterator &end) {

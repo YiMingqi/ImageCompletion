@@ -140,6 +140,11 @@ int _tmain(int argc, _TCHAR* argv[])
 				PointsList[1].push_back(Point(i, 250));
 				PointsList[2].push_back(Point(200, i));
 			}*/
+			/*PointsList.resize(2);
+			for (int i = 50; i < 350; i++) {
+				PointsList[0].push_back(Point(i, 200));
+				PointsList[1].push_back(Point(200, i));
+			}*/
 			for (int i = 0; i < PointsList.size(); i++) {
 				DrawPoints(PointsList[i], img, CV_RGB(255, 0, 0), 1);
 			}
