@@ -44,3 +44,37 @@ void Wang_GetCurve(const vector<Point>& mouse_points, vector<Point> &PointList)
 		LineInterpolation(points_temp,PointList);
 	}
 }
+
+void getMask(const vector<Point>& mouse_points, const Mat& img, Mat1b &mask) {
+	vector<Point> mask_points;
+	mask = Mat::zeros(img.rows, img.cols, CV_8UC1);
+	Wang_GetCurve(mouse_points, mask_points);
+	Point points_temp[2] = { mouse_points[mouse_points.size() - 1], mouse_points[0]};
+	LineInterpolation(points_temp, mask_points);
+	int top = img.rows, bottom = 0;
+	for (int i = 0; i < mask_points.size(); i++) {
+		int y = mask_points[i].y;
+		int x = mask_points[i].x;
+		if (y < top) {
+			top = y;
+		}
+		if (y > bottom) {
+			bottom = y;
+		}
+		mask.at<uchar>(y, x) = 255;
+	}
+	bool inMask;
+	for (int i = 0; i < mask.rows; i++) {
+		inMask = false;
+		const uchar* ptr = mask.ptr<uchar>(i);
+		for (int j = 0; j < mask.cols; j++) {
+			if (ptr[j] == 255) {
+				while (ptr[++j] == 255);
+				inMask = !inMask;
+			}
+			if (i <= top || i >= bottom || inMask == false) {
+				mask.at<uchar>(i, j) = 255;
+			}
+		}
+	}
+}

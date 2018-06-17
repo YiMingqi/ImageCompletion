@@ -1,6 +1,7 @@
 #pragma once
 void LineInterpolation(Point points[2],vector<Point> &PointList);
 void Wang_GetCurve(const vector<Point>& mouse_points, vector<Point> &PointList);
+void getMask(const vector<Point>& points, const Mat& mat, Mat1b &mask);
 extern Mat3b result_copy;
 
 inline void drawRect(Point p, int size) {

@@ -74,8 +74,8 @@ int _tmain(int argc, _TCHAR* argv[])
 	// img=imread("img.jpg",1);
 	// mask=imread("mask.bmp",0);
 
-	img=imread("K.png",1);
-	mask=imread("K.bmp",0);
+	img=imread("curve_test1.png",1);
+	mask=imread("curve_test1.bmp",0);
 
 	threshold(mask,mask,125,255,CV_THRESH_BINARY_INV);
 	result.zeros(img.size());
@@ -95,7 +95,6 @@ int _tmain(int argc, _TCHAR* argv[])
 	result.copyTo(Local_Result_Copy);
 	result.copyTo(result_copy);
 	//file.open("test.txt");
-
 	for (;;)
 	{
 		iscurve=iscurve_temp;
@@ -144,6 +143,17 @@ int _tmain(int argc, _TCHAR* argv[])
 				DrawPoints(PointsList[i], result_copy, CV_RGB(255, 0, 0), 1);
 			}
 			imshow("img",result_copy);
+		}
+		else if (c == 'm') {
+			if (iscurve && mousepoints.size() > 0) {
+				getMask(mousepoints[mousepoints.size() - 1], img, mask);
+				result = Mat::zeros(img.rows, img.cols, CV_8UC3);
+				img.copyTo(result, mask);
+				imshow("img", result);
+				result.copyTo(Local_Result_Copy);
+				result.copyTo(result_copy);
+				mousepoints.clear();
+			}
 		}
 	}
 	file.close();
