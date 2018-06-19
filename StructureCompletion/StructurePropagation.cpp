@@ -32,7 +32,7 @@ void StructurePropagation::Run(const Mat1b &_mask, const Mat& _img, Mat1b &Linem
 		cout << sampleIndices[i] << ", ";
 	}
 	ModifyMask(Linemask, anchorPoints);
-	getResult(sampleIndices, samplePoints, anchorPoints, result);
+	getResult(_mask,sampleIndices, samplePoints, anchorPoints, result);
 }
 
 void StructurePropagation::ModifyMask(Mat1b &LineMask, vector<PointPos>AnchorPoints)
@@ -88,8 +88,8 @@ int dist(Vec3b V1, Vec3b V2)
 
 void StructurePropagation::TextureCompletion(const Mat1b &_mask, Mat1b &LineMask, const Mat &mat, Mat &result)
 {
-	const int PatchSize = 3;
-	const int step = 3 * PatchSize;
+	const int PatchSize = 5;
+	const int step = 2*PatchSize;
 	
 	int N = mat.rows;
 	int M = mat.cols;
@@ -178,7 +178,7 @@ void StructurePropagation::TextureCompletion(const Mat1b &_mask, Mat1b &LineMask
 	priority_queue<pair<int,pair<int,int> > >heap;
 	for (int i = 0; i < N; i++)
 	{
-		printf("%d\n", i);
+		//printf("%d\n", i);
 		for (int j = 0; j < M; j++)
 		if (my_mask[i][j] == 0)
 		{
@@ -201,17 +201,19 @@ void StructurePropagation::TextureCompletion(const Mat1b &_mask, Mat1b &LineMask
 	while (!heap.empty())
 	{
 		auto tmp = heap.top();
+		printf("ch = %d\n", tmp.first);
 		heap.pop();
 		int x = tmp.second.first;
 		int y = tmp.second.second;
 		if (my_mask[x][y] != 0) continue;
 		//printf("solve %d %d\n", x, y);
 		done++;
-		if (done % 200 == 0)
+		if (done % 100 == 0)
 		{
 			printf("%d\n", done);
 		}
 		double minD = 1e9,patchnum = -1;
+		int minSpaceD = 1e9;
 		const double K1 = 1, K2 = 1;
 		for (int i = 0; i < Sample.size(); i++)
 		{
@@ -228,10 +230,47 @@ void StructurePropagation::TextureCompletion(const Mat1b &_mask, Mat1b &LineMask
 			if (D < minD)
 			{
 				minD = D;
-				patchnum = i;
+			}
+		}
+		for (int i = 0; i < Sample.size(); i++)
+		{
+			int sx = Sample[i].first, sy = Sample[i].second;
+			int D = 0;
+			for (int j = -PatchSize; j <= PatchSize; j++)
+			for (int k = -PatchSize; k <= PatchSize; k++)
+			{
+				if (x + j < 0 || x + j >= N) continue;
+				if (y + k < 0 || y + k >= M) continue;
+				if (my_mask[x + j][y + k] == 0) continue;
+				D += dist(result.at<Vec3b>(x + j, y + k), result.at<Vec3b>(sx + j, sy + k));
+			}
+			if (D < minD * 1.2)
+			{
+				int SpaceD = sqr(sx - x) + sqr(sy - y);
+				if (SpaceD < minSpaceD)
+				{
+					minSpaceD = SpaceD;
+					patchnum = i;
+				}
 			}
 		}
 		int sx = Sample[patchnum].first, sy = Sample[patchnum].second;
+
+		if (done == 30)
+		{
+			for (int i = -PatchSize; i <= PatchSize;i++)
+			for (int j = -PatchSize; j <= PatchSize; j++)
+			{
+				result.at<Vec3b>(x + i, y + j)[0] = 255;
+				result.at<Vec3b>(x + i, y + j)[1] = 0;
+				result.at<Vec3b>(x + i, y + j)[2] = 0;
+
+				result.at<Vec3b>(sx + i, sy + j)[0] = 0;
+				result.at<Vec3b>(sx + i, sy + j)[1] = 255;
+				result.at<Vec3b>(sx + i, sy + j)[2] = 0;
+			}
+			break;
+		}
 		//printf("target = %d %d\n", sx, sy);
 		for (int j = -PatchSize; j <= PatchSize; j++)
 		for (int k = -PatchSize; k <= PatchSize; k++)
@@ -264,7 +303,7 @@ void StructurePropagation::TextureCompletion(const Mat1b &_mask, Mat1b &LineMask
 			{
 				if (sx + l < 0 || sx + l >= N) continue;
 				if (sy + m < 0 || sy + m >= M) continue;
-				pixelcnt[sx][sy] += (my_mask[sx + l][sy + m] != 0);
+				pixelcnt[sx][sy] += (my_mask[sx + l][sy + m] % 2 != 0);
 			}
 			heap.push(mp(pixelcnt[sx][sy], mp(sx, sy)));
 		}
@@ -276,7 +315,25 @@ void StructurePropagation::TextureCompletion(const Mat1b &_mask, Mat1b &LineMask
 	MyFree(neighbor, N, M);
 }
 
-void StructurePropagation::getResult(int *sampleIndices, const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, Mat& result) {
+double StructurePropagation::gauss(double x)
+{
+	double sigma = blockSize / 2;
+	double pi = acos(-1);
+	return exp(-x / (2 * sigma*sigma)) / (sqrt(2*pi) * sigma);
+}
+
+Vec3b fuse(Vec3b v1, Vec3b v2,double weight)
+{
+	printf("%.5lf\n", weight);
+	Vec3b res;
+	for (int i = 0; i < 3; i++)
+	{
+		res[i] = int(v1[i] * weight + v2[i] * (1 - weight));
+	}
+	return res;
+}
+
+void StructurePropagation::getResult(Mat1b mask,int *sampleIndices, const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, Mat& result) {
 	// copy all sample patches to corresponding anchor pathces
 	int offset1 = blockSize / 2;
 	int offset2 = blockSize - offset1;
@@ -284,15 +341,30 @@ void StructurePropagation::getResult(int *sampleIndices, const vector<PointPos> 
 		Point src = pointManager.getPoint(samplePoints[sampleIndices[i]]);
 		Point tar = pointManager.getPoint(anchorPoints[i]);
 		printf("%d %d %d\n", i, tar.y, tar.x);
+		/*
 		for (int m = -offset1; m < offset2; m++) {
 			int tary = tar.y + m;
 			const Vec3b* srcPtr = result.ptr<Vec3b>(src.y + m);
 			for (int n = -offset1; n < offset2; n++) {
 				result.at<Vec3b>(tar.y + m, tar.x + n) = srcPtr[src.x + n];
 			}
-		}
+		}*/
 		//brightness fix
-
+		for (int m = -offset1; m < offset2; m++)
+			for (int n=-offset1;n<offset2;n++)
+			{
+				if (mask.at<uchar>(tar.y + m, tar.x + n) == 255)
+				{
+					puts("fuse");
+					printf("%d %d\n", tar.y + m, tar.x + n);
+					result.at<Vec3b>(tar.y + m, tar.x + n) = fuse(result.at<Vec3b>(src.y + m, src.x + n), result.at<Vec3b>(tar.y + m, tar.x + n),9*gauss(m*m+n*n));
+				}
+				else
+				{
+					result.at<Vec3b>(tar.y + m, tar.x + n) = result.at<Vec3b>(src.y + m, src.x + n);
+				}
+				mask.at<uchar>(tar.y + m, tar.x + n) = 255;
+			}
 		/*
 		if (i == 0) continue;
 		Point lasttar = pointManager.getPoint(anchorPoints[i - 1]);
@@ -327,48 +399,6 @@ void StructurePropagation::getResult(int *sampleIndices, const vector<PointPos> 
 			}
 		}
 		*/
-	}
-
-	//fix 0 & -1
-
-	
-	printf("%d %d\n", pointManager.getPoint(anchorPoints[0]).y, pointManager.getPoint(anchorPoints[0]).x);
-	printf("%d %d\n", pointManager.getPoint(anchorPoints[anchorPoints.size() - 1]).y, pointManager.getPoint(anchorPoints[anchorPoints.size() - 1]).x);
-		
-	Point p0 = pointManager.getPoint(anchorPoints[0]), p1 = pointManager.getPoint(anchorPoints[1]);
-	Point lasttar = Point(2 * p0.x - p1.x, 2 * p0.y - p1.y);
-	Point tar = p0;
-	int ly = lasttar.y, lx = lasttar.x, ty = tar.y, tx = tar.x;
-	Point src = pointManager.getPoint(samplePoints[sampleIndices[0]]);
-	int sx = src.x, sy = src.y;
-	int L = max(lx, tx) - offset1, R = min(lx, tx) + offset2;
-	int U = max(ly, ty) - offset1, D = min(ly, ty) + offset2;
-	for (int m = U; m < D; m++)
-	for (int n = L; n < R; n++)
-	{
-		double weight, W1, W2, W3, W4;
-		if (tx > lx)
-		W1 = R - n - 1, W2 = n - L;
-		else
-		W1 = n - L, W2 = R - n - 1;
-
-		if (ty > ly)
-		W3 = D - m - 1, W4 = m - U;
-		else
-		W3 = m - U, W4 = D - m - 1;
-		weight = (W1*W3+1) / (W1*W3 + W2*W4 + 2);
-		int dy = m - ty, dx = n - tx;
-		for (int ch = 0; ch < 3; ch++)
-		{
-			int ret;
-			int v1 = result.at<Vec3b>(m, n)[ch];
-			//int tmp1 = sy + dy;
-			//int tmp2 = sx + dx;
-			int v2 = result.at<Vec3b>(sy + dy, sx + dx)[ch];
-			//printf("%d %d %d %d %.5f\n", m, n, v1, v2, weight);
-			ret = v2 * weight - v1 * (1 - weight);
-			result.at<Vec3b>(m, n)[ch] = 0;
-		}
 	}
 	free(sampleIndices);
 }

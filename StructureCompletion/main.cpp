@@ -81,6 +81,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	//mask = imread("curve_test2.bmp", 0);
 
 	img = imread("img_small.jpg", 1);
+	mask = imread("mymask.bmp", 0);
 	Mat1b Linemask = Mat::zeros(img.rows, img.cols, CV_8UC1);
 
 	threshold(mask,mask,125,255,CV_THRESH_BINARY_INV);
@@ -159,6 +160,11 @@ int _tmain(int argc, _TCHAR* argv[])
 				imshow("img", result);
 				result.copyTo(Local_Result_Copy);
 				result.copyTo(result_copy);
+				/*
+				for (int i = 0; i < mask.rows;i++)
+				for (int j = 0; j < mask.cols; j++)mask.at<uchar>(i, j) = 255 - mask.at<uchar>(i, j);
+				imwrite("mymask.bmp", mask);
+				*/
 				mousepoints.clear();
 			}
 		}
