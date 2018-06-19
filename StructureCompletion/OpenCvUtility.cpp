@@ -52,6 +52,24 @@ void getMask(const vector<Point>& mouse_points, const Mat& img, Mat1b &mask) {
 	Point points_temp[2] = { mouse_points[mouse_points.size() - 1], mouse_points[0]};
 	LineInterpolation(points_temp, mask_points);
 	int top = img.rows, bottom = 0;
+	int maxx[1010], minx[1010];
+	for (int i = 0; i < img.rows; i++)
+	{
+		maxx[i] = 0;
+		minx[i] = img.cols;
+	}
+	for (int i = 0; i < mask_points.size(); i++) {
+		int y = mask_points[i].y;
+		int x = mask_points[i].x;
+		maxx[y] = max(maxx[y], x);
+		minx[y] = min(minx[y], x);
+	}
+	for (int i = 0; i < mask.rows;i++)
+	for (int j = 0; j < mask.cols; j++)
+	{
+		mask.at<uchar>(i, j) = !(j>=minx[i] && j<=maxx[i]) * 255;
+	}
+	/*
 	for (int i = 0; i < mask_points.size(); i++) {
 		int y = mask_points[i].y;
 		int x = mask_points[i].x;
@@ -76,5 +94,5 @@ void getMask(const vector<Point>& mouse_points, const Mat& img, Mat1b &mask) {
 				mask.at<uchar>(i, j) = 255;
 			}
 		}
-	}
+	}*/
 }

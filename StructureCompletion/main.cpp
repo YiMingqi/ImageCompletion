@@ -13,7 +13,7 @@ vector<vector<Point>> PointsList;
 Point prev_pt(-1,-1);
 vector<vector<Point>> mousepoints;
 vector<Point> curvePoints;
-int blocksize=20;
+int blocksize=10;
 int samplestep=2;
 bool iscurve=true;
 ofstream file;
@@ -74,8 +74,14 @@ int _tmain(int argc, _TCHAR* argv[])
 	// img=imread("img.jpg",1);
 	// mask=imread("mask.bmp",0);
 
-	img=imread("curve_test1.png",1);
-	mask=imread("curve_test1.bmp",0);
+	//img=imread("curve_test1.png",1);
+	//mask=imread("curve_test1.bmp",0);
+
+	//img = imread("curve_test2.png", 1);
+	//mask = imread("curve_test2.bmp", 0);
+
+	img = imread("img_small.jpg", 1);
+	Mat1b Linemask = Mat::zeros(img.rows, img.cols, CV_8UC1);
 
 	threshold(mask,mask,125,255,CV_THRESH_BINARY_INV);
 	result.zeros(img.size());
@@ -115,7 +121,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				DrawPoints(PointsList[i], img, CV_RGB(255, 0, 0), 1);
 			}
 			SP.SetParm(blocksize,samplestep,iscurve);
-			SP.Run(mask,result,PointsList,Local_Result_Copy);
+			SP.Run(mask,result,Linemask,PointsList,Local_Result_Copy);
 			imshow("img", Local_Result_Copy);
 			Local_Result_Copy.copyTo(result_copy);
 			PointsList.clear();
@@ -128,6 +134,7 @@ int _tmain(int argc, _TCHAR* argv[])
 			result.copyTo(Local_Result_Copy);
 			PointsList.clear();
 			mousepoints.clear();
+			Linemask = Mat::zeros(img.rows, img.cols, CV_8UC1);
 			imshow("img",result_copy);
 		}
 		else if (c=='a')
@@ -154,6 +161,15 @@ int _tmain(int argc, _TCHAR* argv[])
 				result.copyTo(result_copy);
 				mousepoints.clear();
 			}
+		}
+		else if (c == 't'){
+			Mat tmp = result_copy.clone();
+			for (int i = 0; i < PointsList.size(); i++) {
+				DrawPoints(PointsList[i], img, CV_RGB(255, 0, 0), 1);
+			}
+			imshow("img", Local_Result_Copy);
+			SP.TextureCompletion(mask, Linemask, tmp, Local_Result_Copy);
+			imshow("img", Local_Result_Copy);
 		}
 	}
 	file.close();
