@@ -17,7 +17,6 @@ void StructurePropagation::Run(const Mat1b &_mask, const Mat& _img, vector<vecto
 	pointManager.reset(linePoints, grayMat, blockSize);
 	vector<PointPos> samplePoints;
 	pointManager.getSamplePoints(samplePoints, sampleStep);
-	// No enough sample points or anchor points
 	if (samplePoints.size() == 0){
 		return;
 	}
@@ -282,7 +281,7 @@ double StructurePropagation::calcE2(const Mat &mat, const PointPos &i1, const Po
 
 double StructurePropagation::calcEs(const PointPos &i, const PointPos &xi) {
 	if (isCurve) {
-		vector<Point> points1(30), points2(30);
+		vector<Point> points1, points2;
 		vector<int> minDistance1, minDistance2;
 		Point pi = pointManager.getPoint(i);
 		Point pxi = pointManager.getPoint(xi);

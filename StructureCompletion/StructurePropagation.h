@@ -11,8 +11,8 @@ class StructurePropagation
 {
 public:
 	StructurePropagation() {
-		ki = 0.5;
-		ks = 0.5;
+		ki = 0.99;
+		ks = 0.01;
 	}
 	~StructurePropagation(){}
 	void Run(const Mat1b &_mask, const Mat& _img, vector<vector<Point>> &linePoints, Mat& result);
