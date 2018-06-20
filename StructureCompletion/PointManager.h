@@ -111,7 +111,7 @@ public:
 	bool nearBoundary(PointPos p);
 	void getPointsinPatch(PointPos p, vector<Point> &ret);
 	void getSamplePoints(vector<PointPos> &samples, int sampleStep, list<int> &line);
-	void constructBPMap();
+	void constructBPMap(list<int> &line);
 	void getAnchorPoints(vector<PointPos> &anchors, list<int> &line);
 	void getPropstackItor(list<shared_ptr<Node>>::iterator &begin, list<shared_ptr<Node>>::iterator &end);
 	void getPropstackReverseItor(list<shared_ptr<Node>>::reverse_iterator &begin, list<shared_ptr<Node>>::reverse_iterator &end);

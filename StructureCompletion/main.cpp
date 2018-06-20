@@ -77,11 +77,11 @@ int _tmain(int argc, _TCHAR* argv[])
 	//img=imread("curve_test1.png",1);
 	//mask=imread("curve_test1.bmp",0);
 
-	img = imread("curve_test2.png", 1);
-	mask = imread("curve_test2.bmp", 0);
+	//img = imread("curve_test2.png", 1);
+	//mask = imread("curve_test2.bmp", 0);
 
-	/*img = imread("img_small.jpg", 1);
-	mask = imread("mymask.bmp", 0);*/
+	img = imread("img_small.jpg", 1);
+	mask = imread("mymask.bmp", 0);
 	Mat1b Linemask = Mat::zeros(img.rows, img.cols, CV_8UC1);
 
 	threshold(mask,mask,125,255,CV_THRESH_BINARY_INV);

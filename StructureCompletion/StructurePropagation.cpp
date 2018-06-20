@@ -32,14 +32,16 @@ void StructurePropagation::Run(const Mat1b &_mask, const Mat& _img, Mat1b &Linem
 			sampleIndices = DP(samplePoints, anchorPoints, grayMat);
 		}
 		else {
-			pointManager.constructBPMap();
+			pointManager.constructBPMap(**itor);
 			sampleIndices = BP(samplePoints, anchorPoints, grayMat);
 		}
 		ModifyMask(Linemask, anchorPoints);
 		getResult(_mask, sampleIndices, samplePoints, anchorPoints, result);
 	}
-	/*sampleIndices = DP(samplePoints, anchorPoints, grayMat);
-	// sampleIndices = BP(samplePoints, anchorPoints, grayMat);
+	/*pointManager.getSamplePoints(samplePoints, sampleStep, **lineSets.begin());
+	// sampleIndices = DP(samplePoints, anchorPoints, grayMat);
+	pointManager.constructBPMap();
+	sampleIndices = BP(samplePoints, anchorPoints, grayMat);
 	for (int i = 0; i < anchorPoints.size(); i++) {
 		cout << sampleIndices[i] << ", ";
 	}
@@ -355,7 +357,7 @@ void StructurePropagation::getResult(Mat1b mask,int *sampleIndices, const vector
 	for (int i = 0; i < anchorPoints.size(); i++) {
 		Point src = pointManager.getPoint(samplePoints[sampleIndices[i]]);
 		Point tar = pointManager.getPoint(anchorPoints[i]);
-		// printf("%d %d %d\n", i, tar.y, tar.x);
+		printf("%d %d %d\n", i, tar.y, tar.x);
 		for (int m = -offset1; m < offset2; m++) {
 			int tary = tar.y + m;
 			const Vec3b* srcPtr = result.ptr<Vec3b>(src.y + m);
@@ -494,31 +496,30 @@ int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<Point
 
 void StructurePropagation::calcMij(Node &n, const list<shared_ptr<Edge>>::iterator &edgeItor, const Mat &mat, const vector<PointPos> &samplePoints) {
 	double **Mptr = (*edgeItor)->getMbyFrom(n.id);
+	list<shared_ptr<Edge>>::iterator end = n.getEdgeEnd();
 	if (*Mptr == NULL) {
 		*Mptr = (double*)malloc(samplePoints.size() * sizeof(double));
 		for (int i = 0; i < samplePoints.size(); i++) {
 			// calcalate Ei beforehand
 			double E1 = ks * calcEs(n.p, samplePoints[i]) + ki * calcEi(mat, n.p, samplePoints[i]);
+			// add up the message sent from Mki (k != j)
+			list<shared_ptr<Edge>>::iterator itor = n.getEdgeBegin();
+			double msg = 0.0;
+			for (; itor != end; itor++) {
+				if (itor != edgeItor) {
+					double **toMptr = (*itor)->getMbyTo(n.id);
+					if (*toMptr == NULL) {
+						assert(0);
+					}
+					msg += (*toMptr)[i];
+				}
+			}
 			PointPos tmpPos = pointManager.getPointPos((*edgeItor)->getAnother(n.id));
 			for (int j = 0; j < samplePoints.size(); j++) {
 				// try updating tne minimal value of each item in Mij
-				double E2 = calcE2(mat, tmpPos, n.p, samplePoints[i], samplePoints[j]);
-				if (E1 + E2 < (*Mptr)[j]) {
-					(*Mptr)[j] = E1 + E2;
-				}
-			}
-		}
-		// add up the message sent from Mki (k != j)
-		list<shared_ptr<Edge>>::iterator itor = n.getEdgeBegin();
-		list<shared_ptr<Edge>>::iterator end = n.getEdgeEnd();
-		for (; itor != end; itor++) {
-			if (itor != edgeItor) {
-				double **toMptr = (*itor)->getMbyTo(n.id);
-				if (*toMptr == NULL) {
-					assert(0);
-				}
-				for (int i = 0; i < samplePoints.size(); i++) {
-					(*Mptr)[i] += (*toMptr)[i];
+				double E2 = calcE2(mat, n.p, tmpPos, samplePoints[i], samplePoints[j]);
+				if (E1 + E2 + msg < (*Mptr)[j]) {
+					(*Mptr)[j] = E1 + E2 + msg;
 				}
 			}
 		}
@@ -544,7 +545,7 @@ int *StructurePropagation::DP(const vector<PointPos> &samplePoints, vector<Point
 		for (int j = 0; j < samplePoints.size(); j++) {
 			double E1 = ks * calcEs(anchorPoints[i], samplePoints[j]) +
 				ki * calcEi(mat, anchorPoints[i], samplePoints[j]);
-			double min = 1e+30;
+			double min = INT_MAX;
 			int minIndex;
 			// choose optimal x(i-1)
 			// x(i-1) = k
@@ -574,7 +575,7 @@ int *StructurePropagation::DP(const vector<PointPos> &samplePoints, vector<Point
 
 	// find out the optimal xi of last anchor point
 	int *sampleIndices = (int*)malloc(anchorPoints.size() * sizeof(int));
-	double min = 1e+30;
+	double min = INT_MAX;
 	for (int j = 0; j < samplePoints.size(); j++) {
 		if (M[curOffset + j] < min) {
 			sampleIndices[anchorPoints.size() - 1] = j;

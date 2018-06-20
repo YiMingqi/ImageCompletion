@@ -194,11 +194,15 @@ void PointManager::getPointsinPatch(PointPos p, vector<Point> &ret) {
 	}
 }
 
-void PointManager::constructBPMap() {
+/*void PointManager::constructBPMap() {
 	map<int, list<PointPos>>::iterator mapItor;
 	list<shared_ptr<Node>> BFSstack;
 	vector<vector<ushort>> pointVisitedMarks(linePoints.size());
 	vector<list<shared_ptr<Node>>> nodeListBucket(4);
+
+	nodes.clear();
+	propagationStack.clear();
+	Node::totalNum = 0;
 
 	// initialize the visit map
 	pointVisitedMarks.resize(linePoints.size());
@@ -288,9 +292,9 @@ void PointManager::constructBPMap() {
 	}
 	int i = 0;
 	i++;
-}
+}*/
 
-/*void PointManager::constructBPMap(list<int> &line) {
+void PointManager::constructBPMap(list<int> &line) {
 	map<int, list<PointPos>>::iterator mapItor;
 	list<shared_ptr<Node>> BFSstack;
 	vector<vector<ushort>> pointVisitedMarks(linePoints.size());
@@ -383,7 +387,7 @@ void PointManager::constructBPMap() {
 	}
 	int i = 0;
 	i++;
-}*/
+}
 
 int PointManager::addNeighbor(Node &n, const PointPos &pos, vector<vector<ushort>> &visitedMark, list<shared_ptr<Node>> &BFSstack) {
 	Endpoints endpoints = lineEnds[pos.lineIndex];
@@ -481,7 +485,6 @@ void PointManager::getSamplePoints(vector<PointPos> &samples, int sampleStep, li
 		}
 		int beginIndex = blockSize;
 		int endIndex;
-		int lineIndex = *itor;
 		while (endpoints.trueLineIndex == i) {
 			endIndex = endpoints.startIndex;
 			for (int j = endIndex - 1; j >= beginIndex; j -= sampleStep) {
@@ -490,7 +493,7 @@ void PointManager::getSamplePoints(vector<PointPos> &samples, int sampleStep, li
 					c++;
 				}
 				if (!nearBoundary(linePoints[i][j], true)) {
-					samples.push_back(PointPos(lineIndex, j));
+					samples.push_back(PointPos(*itor, j));
 				}
 			}
 			beginIndex = endpoints.endIndex;
@@ -498,14 +501,13 @@ void PointManager::getSamplePoints(vector<PointPos> &samples, int sampleStep, li
 			if (itor == line.end()) {
 				break;
 			}
-			lineIndex = *itor;
-			endpoints = lineEnds[lineIndex];
+			endpoints = lineEnds[*itor];
 		}
 		// -blocksize: ensure all samples have complete line segments
 		endIndex = linePoints[i].size() - blockSize;
 		for (int j = endIndex - 1; j >= beginIndex; j -= sampleStep) {
 			if (!nearBoundary(linePoints[i][j], true)) {
-				samples.push_back(PointPos(lineIndex, j));
+				samples.push_back(PointPos(*(list<int>::reverse_iterator(itor)++), j));
 			}
 		}
 	}
