@@ -106,13 +106,13 @@ class PointManager {
 public:
 	PointManager() {
 	}
-	void reset(const vector<vector<Point>> &linePoints, const Mat1b &mask, int blockSize);
+	void reset(const vector<vector<Point>> &linePoints, const Mat1b &mask, int blockSize, set<shared_ptr<list<int>>> &lineSets);
 	Point getPoint(PointPos p);
 	bool nearBoundary(PointPos p);
 	void getPointsinPatch(PointPos p, vector<Point> &ret);
-	void getSamplePoints(vector<PointPos> &samples, int sampleStep);
+	void getSamplePoints(vector<PointPos> &samples, int sampleStep, list<int> &line);
 	void constructBPMap();
-	void getAnchorPoints(vector<PointPos> &anchors);
+	void getAnchorPoints(vector<PointPos> &anchors, list<int> &line);
 	void getPropstackItor(list<shared_ptr<Node>>::iterator &begin, list<shared_ptr<Node>>::iterator &end);
 	void getPropstackReverseItor(list<shared_ptr<Node>>::reverse_iterator &begin, list<shared_ptr<Node>>::reverse_iterator &end);
 	int getPropstackSize() {

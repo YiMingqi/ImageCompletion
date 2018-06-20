@@ -11,7 +11,7 @@ class StructurePropagation
 {
 public:
 	StructurePropagation() {
-		ki = 0.75;
+		ki = 1000;
 		ks = 0.25;
 	}
 	~StructurePropagation(){}

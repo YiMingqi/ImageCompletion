@@ -15,23 +15,36 @@ void StructurePropagation::Run(const Mat1b &_mask, const Mat& _img, Mat1b &Linem
 		}
 	}
 
-	// pointManager = PointManager();
-	pointManager.reset(linePoints, grayMat, blockSize);
-	vector<PointPos> samplePoints;
-	pointManager.getSamplePoints(samplePoints, sampleStep);
-	if (samplePoints.size() == 0){
-		return;
-	}
+	set<shared_ptr<list<int>>> lineSets;
+	pointManager.reset(linePoints, grayMat, blockSize, lineSets);
 
 	int *sampleIndices;
 	vector<PointPos> anchorPoints;
-	//sampleIndices = DP(samplePoints, anchorPoints, grayMat);
-	sampleIndices = BP(samplePoints, anchorPoints, grayMat);
+	vector<PointPos> samplePoints;
+	set<shared_ptr<list<int>>>::iterator itor;
+	for (itor = lineSets.begin(); itor != lineSets.end(); itor++) {
+		pointManager.getSamplePoints(samplePoints, sampleStep, **itor);
+		if (samplePoints.size() == 0){
+			continue;
+		}
+		if ((*itor)->size() == 1) {
+			pointManager.getAnchorPoints(anchorPoints, **itor);
+			sampleIndices = DP(samplePoints, anchorPoints, grayMat);
+		}
+		else {
+			pointManager.constructBPMap();
+			sampleIndices = BP(samplePoints, anchorPoints, grayMat);
+		}
+		ModifyMask(Linemask, anchorPoints);
+		getResult(_mask, sampleIndices, samplePoints, anchorPoints, result);
+	}
+	/*sampleIndices = DP(samplePoints, anchorPoints, grayMat);
+	// sampleIndices = BP(samplePoints, anchorPoints, grayMat);
 	for (int i = 0; i < anchorPoints.size(); i++) {
 		cout << sampleIndices[i] << ", ";
 	}
 	ModifyMask(Linemask, anchorPoints);
-	getResult(_mask,sampleIndices, samplePoints, anchorPoints, result);
+	getResult(_mask,sampleIndices, samplePoints, anchorPoints, result);*/
 }
 
 void StructurePropagation::ModifyMask(Mat1b &LineMask, vector<PointPos>AnchorPoints)
@@ -334,22 +347,24 @@ Vec3b fuse(Vec3b v1, Vec3b v2,double weight)
 
 void StructurePropagation::getResult(Mat1b mask,int *sampleIndices, const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, Mat& result) {
 	// copy all sample patches to corresponding anchor pathces
+	for (int i = 0; i < anchorPoints.size(); i++) {
+		cout << sampleIndices[i] << ",";
+	}
 	int offset1 = blockSize / 2;
 	int offset2 = blockSize - offset1;
 	for (int i = 0; i < anchorPoints.size(); i++) {
 		Point src = pointManager.getPoint(samplePoints[sampleIndices[i]]);
 		Point tar = pointManager.getPoint(anchorPoints[i]);
-		printf("%d %d %d\n", i, tar.y, tar.x);
-		/*
+		// printf("%d %d %d\n", i, tar.y, tar.x);
 		for (int m = -offset1; m < offset2; m++) {
 			int tary = tar.y + m;
 			const Vec3b* srcPtr = result.ptr<Vec3b>(src.y + m);
 			for (int n = -offset1; n < offset2; n++) {
 				result.at<Vec3b>(tar.y + m, tar.x + n) = srcPtr[src.x + n];
 			}
-		}*/
+		}
 		//brightness fix
-		for (int m = -offset1; m < offset2; m++)
+		/*for (int m = -offset1; m < offset2; m++)
 			for (int n=-offset1;n<offset2;n++)
 			{
 				if (mask.at<uchar>(tar.y + m, tar.x + n) == 255)
@@ -363,7 +378,7 @@ void StructurePropagation::getResult(Mat1b mask,int *sampleIndices, const vector
 					result.at<Vec3b>(tar.y + m, tar.x + n) = result.at<Vec3b>(src.y + m, src.x + n);
 				}
 				mask.at<uchar>(tar.y + m, tar.x + n) = 255;
-			}
+			}*/
 		/*
 		if (i == 0) continue;
 		Point lasttar = pointManager.getPoint(anchorPoints[i - 1]);
@@ -404,8 +419,8 @@ void StructurePropagation::getResult(Mat1b mask,int *sampleIndices, const vector
 
 int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, const Mat &mat) {
 	// do initialization
-	pointManager.constructBPMap();
 	int size = pointManager.getPropstackSize();
+	anchorPoints.clear();
 	anchorPoints.reserve(size);
 
 	list<shared_ptr<Node>>::iterator itor;
@@ -511,7 +526,6 @@ void StructurePropagation::calcMij(Node &n, const list<shared_ptr<Edge>>::iterat
 }
 
 int *StructurePropagation::DP(const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, const Mat &mat) {
-	pointManager.getAnchorPoints(anchorPoints);
 
 	double *M = (double *)malloc(2 * samplePoints.size() * sizeof(double));
 	int *record = (int *)malloc(samplePoints.size() * anchorPoints.size() * sizeof(int));
@@ -530,23 +544,37 @@ int *StructurePropagation::DP(const vector<PointPos> &samplePoints, vector<Point
 		for (int j = 0; j < samplePoints.size(); j++) {
 			double E1 = ks * calcEs(anchorPoints[i], samplePoints[j]) +
 				ki * calcEi(mat, anchorPoints[i], samplePoints[j]);
-			double min = INT_MAX;
+			double min = 1e+30;
+			int minIndex;
 			// choose optimal x(i-1)
 			// x(i-1) = k
 			for (int k = 0; k < samplePoints.size(); k++) {
 				double tmp = calcE2(mat, anchorPoints[i], anchorPoints[i - 1], samplePoints[j], samplePoints[k]) + M[preOffset + k];
 				if (tmp < min) {
-					record[samplePoints.size()*i + j] = k;
 					min = tmp;
+					minIndex = k;
 				}
 			}
+			record[samplePoints.size()*i + j] = minIndex;
 			M[curOffset + j] = E1 + min;
 		}
+		/*for (int i = 0; i < samplePoints.size(); i++) {
+			cout << M[preOffset + i] << ", ";
+		}
+		cout << endl;
+		for (int j = 0; j < samplePoints.size(); j++) {
+			cout << samplePoints.size()*i + j << ", ";
+		}
+		cout << endl;
+		for (int i = 0; i < samplePoints.size(); i++) {
+			cout << M[curOffset + i] << ", ";
+		}
+		cout << endl;*/
 	}
 
 	// find out the optimal xi of last anchor point
 	int *sampleIndices = (int*)malloc(anchorPoints.size() * sizeof(int));
-	double min = INT_MAX;
+	double min = 1e+30;
 	for (int j = 0; j < samplePoints.size(); j++) {
 		if (M[curOffset + j] < min) {
 			sampleIndices[anchorPoints.size() - 1] = j;
@@ -621,9 +649,6 @@ double StructurePropagation::calcE2(const Mat &mat, const PointPos &i1, const Po
 			}
 		}
 		// do normlization
-		if (ssd != 0) {
-			ssd += 0.0;
-		}
 		return ssd / (cols * rows);
 	}
 	else {
@@ -633,52 +658,46 @@ double StructurePropagation::calcE2(const Mat &mat, const PointPos &i1, const Po
 }
 
 double StructurePropagation::calcEs(const PointPos &i, const PointPos &xi) {
-	if (isCurve) {
-		vector<Point> points1, points2;
-		vector<int> minDistance1, minDistance2;
-		Point pi = pointManager.getPoint(i);
-		Point pxi = pointManager.getPoint(xi);
-		int offsetx = pxi.x - pi.x;
-		int offsety = pxi.y - pi.y;
-		// get points of curve segment contained in patch
-		pointManager.getPointsinPatch(i, points1);
-		pointManager.getPointsinPatch(xi, points2);
-		minDistance1.resize(points1.size());
-		minDistance2.resize(points2.size());
-		// initialize minimal distance
-		for (int i = 0; i < points1.size(); i++) {
-			minDistance1[i] = INT_MAX;
-		}
-		for (int i = 0; i < points2.size(); i++) {
-			minDistance2[i] = INT_MAX;
-		}
-		// calculate the minimal distances for points in curve segments
-		for (int i = 0; i < points1.size(); i++) {
-			for (int j = 0; j < points2.size(); j++) {
-				int diffx = points1[i].x - points2[j].x + offsetx;
-				int diffy = points1[i].y - points2[j].y + offsety;
-				int distance = diffx*diffx + diffy*diffy;
-				if (distance < minDistance1[i]) {
-					minDistance1[i] = distance;
-				}
-				if (distance < minDistance2[j]) {
-					minDistance2[j] = distance;
-				}
+	vector<Point> points1, points2;
+	vector<int> minDistance1, minDistance2;
+	Point pi = pointManager.getPoint(i);
+	Point pxi = pointManager.getPoint(xi);
+	int offsetx = pxi.x - pi.x;
+	int offsety = pxi.y - pi.y;
+	// get points of curve segment contained in patch
+	pointManager.getPointsinPatch(i, points1);
+	pointManager.getPointsinPatch(xi, points2);
+	minDistance1.resize(points1.size());
+	minDistance2.resize(points2.size());
+	// initialize minimal distance
+	for (int i = 0; i < points1.size(); i++) {
+		minDistance1[i] = INT_MAX;
+	}
+	for (int i = 0; i < points2.size(); i++) {
+		minDistance2[i] = INT_MAX;
+	}
+	// calculate the minimal distances for points in curve segments
+	for (int i = 0; i < points1.size(); i++) {
+		for (int j = 0; j < points2.size(); j++) {
+			int diffx = points1[i].x - points2[j].x + offsetx;
+			int diffy = points1[i].y - points2[j].y + offsety;
+			int distance = diffx*diffx + diffy*diffy;
+			if (distance < minDistance1[i]) {
+				minDistance1[i] = distance;
+			}
+			if (distance < minDistance2[j]) {
+				minDistance2[j] = distance;
 			}
 		}
-		int es1 = 0, es2 = 0;
-		for (int i = 0; i < minDistance1.size(); i++) {
-			es1 += minDistance1[i];
-		}
-		for (int i = 0; i < minDistance2.size(); i++) {
-			es2 += minDistance2[i];
-		}
-		return (double)es1 / minDistance1.size() + (double)es2 / minDistance2.size();
 	}
-	else {
-		// line segments in patches are always the same
-		return 0.0;
+	int es1 = 0, es2 = 0;
+	for (int i = 0; i < minDistance1.size(); i++) {
+		es1 += minDistance1[i];
 	}
+	for (int i = 0; i < minDistance2.size(); i++) {
+		es2 += minDistance2[i];
+	}
+	return (double)es1 / minDistance1.size() + (double)es2 / minDistance2.size();
 }
 
 double StructurePropagation::calcEi(const Mat &mat, const PointPos &i, const PointPos &xi) {
