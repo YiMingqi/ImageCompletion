@@ -11,11 +11,12 @@ class StructurePropagation
 {
 public:
 	StructurePropagation() {
-		ki = 0.99;
-		ks = 0.01;
+		ki = 0.75;
+		ks = 0.25;
 	}
 	~StructurePropagation(){}
-	void Run(const Mat1b &_mask, const Mat& _img, vector<vector<Point>> &linePoints, Mat& result);
+	void Run(const Mat1b &_mask, const Mat& _img, Mat1b &Linemask, vector<vector<Point>> &linePoints, Mat& result);
+	void StructurePropagation::TextureCompletion(const Mat1b &_mask, Mat1b &LineMask, const Mat &mat, Mat &result);
 	void SetParm(int _blocksize,int _samplestep,int _iscurve);
 
 private:
@@ -26,10 +27,11 @@ private:
 	double ks;
 	PointManager pointManager;
 
-
-	void getResult(int *sampleIndices, const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, Mat& result);
+	void getResult(Mat1b mask, int *sampleIndices, const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, Mat& result);
+	void ModifyMask(Mat1b &LineMask, vector<PointPos>AnchorPoints);
 	int *DP(const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, const Mat &mat);
 	int *BP(const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, const Mat &mat);
+	double gauss(double x);
 	double calcEs(const PointPos &i, const PointPos &xi);
 	double calcEi(const Mat &mat, const PointPos &i, const PointPos &xi);
 	double calcE2(const Mat &mat, const PointPos &i1, const PointPos &i2, const PointPos &xi1, const PointPos &xi2);
