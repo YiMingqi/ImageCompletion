@@ -40,9 +40,14 @@ void PointManager::reset(const vector<vector<Point>> &linePoints, const Mat1b &m
 			else if (mask.at<uchar>(y, x)) {
 				// current line get out of the mask area, end this line
 				if (inMask == true) {
-					endpoints.endIndex = i;
-					lineEnds.push_back(endpoints);
-					inMask = false;
+					if (nearBoundary(linePoints[j][i], true)) {
+						boundaryPoints.insert(PointPos(lineEnds.size(), i));
+					}
+					else {
+						endpoints.endIndex = i;
+						lineEnds.push_back(endpoints);
+						inMask = false;
+					}
 				}
 			}
 			else {

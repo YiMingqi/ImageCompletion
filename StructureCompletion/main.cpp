@@ -74,14 +74,17 @@ int _tmain(int argc, _TCHAR* argv[])
 	// img=imread("img.jpg",1);
 	// mask=imread("mask.bmp",0);
 
-	//img=imread("curve_test1.png",1);
-	//mask=imread("curve_test1.bmp",0);
+	// img=imread("curve_test1.png",1);
+	// mask=imread("curve_test1.bmp",0);
 
-	//img = imread("curve_test2.png", 1);
-	//mask = imread("curve_test2.bmp", 0);
+	// img = imread("curve_test2.png", 1);
+	// mask = imread("curve_test2.bmp", 0);
 
-	img = imread("img_small.jpg", 1);
-	mask = imread("mymask.bmp", 0);
+	// img = imread("img_small.jpg", 1);
+	// mask = imread("mymask.bmp", 0);
+
+	img = imread("plant.jpg");
+	mask = Mat::zeros(img.rows, img.cols, CV_8UC1);
 	Mat1b Linemask = Mat::zeros(img.rows, img.cols, CV_8UC1);
 
 	threshold(mask,mask,125,255,CV_THRESH_BINARY_INV);
@@ -158,6 +161,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				result = Mat::zeros(img.rows, img.cols, CV_8UC3);
 				img.copyTo(result, mask);
 				imshow("img", result);
+				imwrite("tmp_mask.jpg", mask);
 				result.copyTo(Local_Result_Copy);
 				result.copyTo(result_copy);
 				/*

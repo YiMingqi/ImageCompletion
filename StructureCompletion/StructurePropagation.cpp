@@ -338,7 +338,7 @@ double StructurePropagation::gauss(double x)
 
 Vec3b fuse(Vec3b v1, Vec3b v2,double weight)
 {
-	printf("%.5lf\n", weight);
+	// printf("%.5lf\n", weight);
 	Vec3b res;
 	for (int i = 0; i < 3; i++)
 	{
@@ -352,12 +352,14 @@ void StructurePropagation::getResult(Mat1b mask,int *sampleIndices, const vector
 	for (int i = 0; i < anchorPoints.size(); i++) {
 		cout << sampleIndices[i] << ",";
 	}
+	cout << "sample number: " << samplePoints.size() << endl;
+	cout << "anchor number: " << anchorPoints.size() << endl;
 	int offset1 = blockSize / 2;
 	int offset2 = blockSize - offset1;
 	for (int i = 0; i < anchorPoints.size(); i++) {
 		Point src = pointManager.getPoint(samplePoints[sampleIndices[i]]);
 		Point tar = pointManager.getPoint(anchorPoints[i]);
-		printf("%d %d %d\n", i, tar.y, tar.x);
+		// printf("%d %d %d\n", i, tar.y, tar.x);
 		for (int m = -offset1; m < offset2; m++) {
 			int tary = tar.y + m;
 			const Vec3b* srcPtr = result.ptr<Vec3b>(src.y + m);
@@ -371,8 +373,8 @@ void StructurePropagation::getResult(Mat1b mask,int *sampleIndices, const vector
 			{
 				if (mask.at<uchar>(tar.y + m, tar.x + n) == 255)
 				{
-					puts("fuse");
-					printf("%d %d\n", tar.y + m, tar.x + n);
+					// puts("fuse");
+					// printf("%d %d\n", tar.y + m, tar.x + n);
 					result.at<Vec3b>(tar.y + m, tar.x + n) = fuse(result.at<Vec3b>(src.y + m, src.x + n), result.at<Vec3b>(tar.y + m, tar.x + n),9*gauss(m*m+n*n));
 				}
 				else
