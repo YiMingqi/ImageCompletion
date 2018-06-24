@@ -110,7 +110,9 @@ public:
 	Point getPoint(PointPos p);
 	bool nearBoundary(PointPos p);
 	void getPointsinPatch(PointPos p, vector<Point> &ret);
+	void getPointsinPatch(const PointPos &p, list<Point*> &begin, list<int> &length);
 	void getSamplePoints(vector<PointPos> &samples, int sampleStep, list<int> &line);
+	void getSamplePoints(vector<PointPos> &samples, int sampleStep);
 	void constructBPMap(list<int> &line);
 	void getAnchorPoints(vector<PointPos> &anchors, list<int> &line);
 	void getPropstackItor(list<shared_ptr<Node>>::iterator &begin, list<shared_ptr<Node>>::iterator &end);
@@ -121,16 +123,19 @@ public:
 	PointPos getPointPos(ushort id) {
 		return (*nodes[id])->p;
 	}
+	shared_ptr<Node> getNode(ushort id) {
+		return *nodes[id];
+	}
 
 private:
-	vector<vector<Point>> linePoints;
+	vector<vector<Point>> linePoints; //记录用户绘制的点的信息
 	Mat1b mask;
 	int blockSize;
-	vector<Endpoints> lineEnds;
-	set<PointPos> boundaryPoints;
-	map<int, list<PointPos>> intersectingMap;
-	vector<list<shared_ptr<Node>>::iterator> nodes;
-	list<shared_ptr<Node>> propagationStack;
+	vector<Endpoints> lineEnds; //用于记录经过PointManager再次划分后的线段的首尾信息
+	set<PointPos> boundaryPoints; //用于记录所在patch与边界重叠的锚点
+	map<int, list<PointPos>> intersectingMap; //用于记录交点，键值为根据交点的真实坐标计算出的hash值
+	vector<list<shared_ptr<Node>>::iterator> nodes; //一张根据Node id查找node的表，记录着Node对象在双向链表中的迭代器
+	list<shared_ptr<Node>> propagationStack; //记录BP算法中信息传递的顺序
 
 	bool nearBoundary(const Point &p, bool isSample);
 	int calcHashValue(int x, int y);

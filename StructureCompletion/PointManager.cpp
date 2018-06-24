@@ -40,14 +40,17 @@ void PointManager::reset(const vector<vector<Point>> &linePoints, const Mat1b &m
 			else if (mask.at<uchar>(y, x)) {
 				// current line get out of the mask area, end this line
 				if (inMask == true) {
-					if (nearBoundary(linePoints[j][i], true)) {
+					/*if (nearBoundary(linePoints[j][i], true)) {
 						boundaryPoints.insert(PointPos(lineEnds.size(), i));
 					}
 					else {
 						endpoints.endIndex = i;
 						lineEnds.push_back(endpoints);
 						inMask = false;
-					}
+					}*/
+					endpoints.endIndex = i;
+					lineEnds.push_back(endpoints);
+					inMask = false;
 				}
 			}
 			else {
@@ -108,8 +111,9 @@ void PointManager::reset(const vector<vector<Point>> &linePoints, const Mat1b &m
 				}
 			}
 		}
-		for (listItor = mapItor->second.begin(); listItor != mapItor->second.end(); listItor++) {
-			lineSetRecord[listItor->lineIndex] = ptr;
+		list<int>::iterator itor;
+		for (itor = ptr->begin(); itor != ptr->end(); itor++) {
+			lineSetRecord[*itor] = ptr;
 		}
 	}
 
@@ -195,6 +199,51 @@ void PointManager::getPointsinPatch(PointPos p, vector<Point> &ret) {
 			else {
 				ret.push_back(points[i]);
 			}
+		}
+	}
+	int i = 0;
+	i++;
+}
+
+void PointManager::getPointsinPatch(const PointPos &p, list<Point*> &begin, list<int> &length) {
+	// get all points of the line segment contained in this patch
+	Point center = getPoint(p);
+	int leftBound = MAX(center.x - blockSize / 2, 0);
+	int rightBound = MIN(center.x + blockSize - blockSize / 2, mask.cols);
+	int upBound = MAX(center.y - blockSize / 2, 0);
+	int downBound = MIN(center.y + blockSize - blockSize / 2, mask.rows);
+	int hashValue = calcHashValue(center.x, center.y);
+	list<PointPos> pointPositions;
+	// check if the the anchor point is an intersaction
+	// if it is, points of sevaral line segments will be returned
+	if (intersectingMap.count(hashValue)) {
+		pointPositions = intersectingMap[hashValue];
+	}
+	else {
+		pointPositions.push_back(p);
+	}
+	for (list<PointPos>::iterator p = pointPositions.begin(); p != pointPositions.end(); p++) {
+		Endpoints endPoints = lineEnds[p->lineIndex];
+		Point *points = &linePoints[endPoints.trueLineIndex][0];
+		int beginIndex = p->pointIndex;
+		//find the start index of the line segment
+		for (int i = p->pointIndex; i >= 0; i--) {
+			if (points[i].x < leftBound || points[i].y < upBound || points[i].x >= rightBound || points[i].y >= downBound) {
+				beginIndex = i + 1;
+				break;
+			}
+		}
+		begin.push_back(points + beginIndex);
+		// get anchor points backward
+		int i;
+		for (i = p->pointIndex; i < linePoints[endPoints.trueLineIndex].size(); i++) {
+			if (points[i].x < leftBound || points[i].y < upBound || points[i].x >= rightBound || points[i].y >= downBound) {
+				length.push_back(i - beginIndex);
+				break;
+			}
+		}
+		if (i == linePoints[endPoints.trueLineIndex].size()) {
+			length.push_back(linePoints[endPoints.trueLineIndex].size() - beginIndex);
 		}
 	}
 }
@@ -390,8 +439,6 @@ void PointManager::constructBPMap(list<int> &line) {
 			nodes[id] = propagationStack.insert(propagationStack.end(), n);
 		}
 	}
-	int i = 0;
-	i++;
 }
 
 int PointManager::addNeighbor(Node &n, const PointPos &pos, vector<vector<ushort>> &visitedMark, list<shared_ptr<Node>> &BFSstack) {
@@ -518,6 +565,60 @@ void PointManager::getSamplePoints(vector<PointPos> &samples, int sampleStep, li
 	}
 	samples.shrink_to_fit();
 }
+
+void PointManager::getSamplePoints(vector<PointPos> &samples, int sampleStep) {
+	if (lineEnds.size() == 0) {
+		return;
+	}
+	samples.clear();
+	int lineIndex = 0;
+	Endpoints endpoints = lineEnds[0];
+
+	// reserve enough space for samples
+	int total = 0;
+	for (int i = 0; i < linePoints.size(); i++) {
+		total += linePoints[i].size();
+	}
+	for (int i = 0; i < lineEnds.size(); i++) {
+		total -= (lineEnds[i].endIndex - lineEnds[i].startIndex);
+	}
+	samples.reserve(total / sampleStep);
+
+	// get samples from all line segments outside the mask area
+	// sampling step = sampleStep
+	for (int i = 0; i < linePoints.size(); i++) {
+		// +blocksize: ensure all samples have complete line segments
+		int beginIndex = blockSize;
+		int endIndex;
+		while (endpoints.trueLineIndex == i) {
+			endIndex = endpoints.startIndex;
+			for (int j = endIndex - 1; j >= beginIndex; j -= sampleStep) {
+				if (j == beginIndex) {
+					int c = 0;
+					c++;
+				}
+				if (!nearBoundary(linePoints[i][j], true)) {
+					samples.push_back(PointPos(lineIndex, j));
+				}
+			}
+			beginIndex = endpoints.endIndex;
+			++lineIndex;
+			if (lineIndex >= lineEnds.size()) {
+				break;
+			}
+			endpoints = lineEnds[lineIndex];
+		}
+		// -blocksize: ensure all samples have complete line segments
+		endIndex = linePoints[i].size() - blockSize;
+		for (int j = endIndex - 1; j >= beginIndex; j -= sampleStep) {
+			if (!nearBoundary(linePoints[i][j], true)) {
+				samples.push_back(PointPos(lineIndex - 1, j));
+			}
+		}
+	}
+	samples.shrink_to_fit();
+}
+
 
 void PointManager::getAnchorPoints(vector<PointPos> &anchors, list<int> &line) {
 	// only called by DP 

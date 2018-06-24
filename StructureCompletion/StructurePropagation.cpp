@@ -2,11 +2,13 @@
 #include "StructurePropagation.h"
 #include <algorithm>
 #include <queue>
+#include <time.h>
 #define mp make_pair
 
 void StructurePropagation::Run(const Mat1b &_mask, const Mat& _img, Mat1b &Linemask,vector<vector<Point>> &linePoints, Mat& result) {
 
 	// Calculate gray map
+	time_t start = time(NULL);
 	Mat grayMat = Mat::zeros(_img.rows, _img.cols, CV_8UC1);
 	for (int i = 0; i < _img.rows; i++) {
 		for (int j = 0; j < _img.cols; j++) {
@@ -23,7 +25,7 @@ void StructurePropagation::Run(const Mat1b &_mask, const Mat& _img, Mat1b &Linem
 	vector<PointPos> samplePoints;
 	set<shared_ptr<list<int>>>::iterator itor;
 	for (itor = lineSets.begin(); itor != lineSets.end(); itor++) {
-		pointManager.getSamplePoints(samplePoints, sampleStep, **itor);
+		pointManager.getSamplePoints(samplePoints, sampleStep/*, **itor*/);
 		if (samplePoints.size() == 0){
 			continue;
 		}
@@ -33,8 +35,36 @@ void StructurePropagation::Run(const Mat1b &_mask, const Mat& _img, Mat1b &Linem
 		}
 		else {
 			pointManager.constructBPMap(**itor);
+			/*list<shared_ptr<Node>>::iterator begin, end;
+			pointManager.getPropstackItor(begin, end);
+			shared_ptr<Node> n = *begin;
+			list<shared_ptr<Edge>> edges;
+			list<shared_ptr<Node>> queue;
+			vector<int> visit(Node::totalNum + 1);
+			queue.push_back(n);
+			while (queue.size()) {
+				shared_ptr<Node> tmpn = *queue.begin();
+				visit[tmpn->id] = 1;
+				tmpn->getEdges(edges);
+				list<shared_ptr<Edge>>::iterator itor;
+				for (itor = edges.begin(); itor != edges.end(); itor++) {
+					ushort nid = (*itor)->getAnother(tmpn->id);
+					if (!visit[nid]) {
+						queue.push_back(pointManager.getNode(nid));
+						Point points[2];
+						points[0] = pointManager.getPoint(pointManager.getPointPos(tmpn->id));
+						points[1] = pointManager.getPoint(pointManager.getPointPos(nid));
+						vector<Point> pointList;
+						LineInterpolation(points, pointList);
+						DrawPoints(pointList, result, CV_RGB(255, 0, 0), 1);
+					}
+				}
+				queue.pop_front();
+			}*/
 			sampleIndices = BP(samplePoints, anchorPoints, grayMat);
 		}
+		time_t end = time(NULL);
+		cout << "time consuming:" << end - start << endl;
 		ModifyMask(Linemask, anchorPoints);
 		getResult(_mask, sampleIndices, samplePoints, anchorPoints, result);
 	}
@@ -421,7 +451,7 @@ void StructurePropagation::getResult(Mat1b mask,int *sampleIndices, const vector
 	free(sampleIndices);
 }
 
-int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, const Mat &mat) {
+/*int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, const Mat &mat) {
 	// do initialization
 	int size = pointManager.getPropstackSize();
 	anchorPoints.clear();
@@ -475,6 +505,108 @@ int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<Point
 				minIndex = i;
 			}
 		}
+		// cout << n->p.lineIndex << " " << n->p.pointIndex << " | ";
+		// cout <<  i << " " << minIndex << endl;
+		sampleIndices[i] = minIndex;
+	}
+
+	// release resources
+	pointManager.getPropstackItor(itor, end);
+	for (; itor != end; itor++) {
+		shared_ptr<Node> n = *itor;
+		list<shared_ptr<Edge>>::iterator edgeItor = n->getEdgeBegin();
+		list<shared_ptr<Edge>>::iterator end = n->getEdgeEnd();
+		for (; edgeItor != end; edgeItor++) {
+			double **M = (*edgeItor)->getMbyFrom(n->id);
+			if (*M != NULL) {
+				free(*M);
+			}
+		}
+	}
+	free(cur);
+
+	return sampleIndices;
+}*/
+
+int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, const Mat &mat) {
+	// do initialization
+	int size = pointManager.getPropstackSize();
+	anchorPoints.clear();
+	anchorPoints.reserve(size);
+
+	list<shared_ptr<Node>>::iterator itor, begin, end;
+	pointManager.getPropstackItor(begin, end);
+	bool changed = true;
+	// receive message sent from other neighbors
+	while (changed) {
+		changed = false;
+		for (itor = begin; itor != end; itor++) {
+			shared_ptr<Node> n = *itor;
+			list<shared_ptr<Edge>> edges;
+			n->getEdges(edges);
+			list<shared_ptr<Edge>>::iterator edgeItor;
+			for (edgeItor = edges.begin(); edgeItor != edges.end(); edgeItor++) {
+				if (*edgeItor == NULL) {
+					list<shared_ptr<Edge>>::iterator tmpItor;
+					int calculable = true;
+					for (tmpItor = edges.begin(); tmpItor != edges.end(); tmpItor++) {
+						if (tmpItor != edgeItor) {
+							calculable = (*tmpItor != NULL);
+						}
+					}
+					if (calculable) {
+						calcMij(*n, edgeItor, mat, samplePoints);
+						changed = true;
+					}
+				}
+			}
+		}
+	}
+
+	for (itor = begin; itor != end; itor++) {
+		list<shared_ptr<Edge>>::iterator edgeItor;
+		list<shared_ptr<Edge>> edges;
+		for (edgeItor = edges.begin(); edgeItor != edges.end(); edgeItor++) {
+			assert(*(*edgeItor)->getMbyFrom((*itor)->id) != NULL);
+		}
+	}
+
+	// send updated message back to neighbors
+	int *sampleIndices = (int*)malloc(size * sizeof(int));
+	double *cur = (double*)malloc(samplePoints.size() * sizeof(double));
+
+	list<shared_ptr<Node>>::iterator rev_itor;
+	list<shared_ptr<Node>>::iterator rev_end;
+	pointManager.getPropstackItor(rev_itor, rev_end);
+	for (int i = 0; rev_itor != rev_end; rev_itor++, i++) {
+		shared_ptr<Node> n = *rev_itor;
+		list<shared_ptr<Edge>>::iterator begin = n->getEdgeBegin();
+		list<shared_ptr<Edge>>::iterator end = n->getEdgeEnd();
+		list<shared_ptr<Edge>>::iterator itor = begin;
+
+		anchorPoints.push_back(n->p);
+		int minIndex;
+		double min = INT_MAX;
+		// calculate E1 for all possible xi
+		for (int i = 0; i < samplePoints.size(); i++) {
+			cur[i] = ks * calcEs(n->p, samplePoints[i]) + ki * calcEi(mat, n->p, samplePoints[i]);
+		}
+		// add up all messages sent to this node
+		for (itor = begin; itor == end; itor++) {
+			double **toMptr = (*itor)->getMbyTo(n->id);
+			for (int i = 0; i < samplePoints.size(); i++) {
+				cur[i] += (*toMptr)[i];
+			}
+		}
+		// find out the optimal xi
+		for (int i = 0; i < samplePoints.size(); i++) {
+			if (cur[i] < min) {
+				min = cur[i];
+				minIndex = i;
+			}
+		}
+		// cout << n->p.lineIndex << " " << n->p.pointIndex << " | ";
+		// cout <<  i << " " << minIndex << endl;
 		sampleIndices[i] = minIndex;
 	}
 
@@ -495,6 +627,7 @@ int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<Point
 
 	return sampleIndices;
 }
+
 
 void StructurePropagation::calcMij(Node &n, const list<shared_ptr<Edge>>::iterator &edgeItor, const Mat &mat, const vector<PointPos> &samplePoints) {
 	double **Mptr = (*edgeItor)->getMbyFrom(n.id);
@@ -581,6 +714,7 @@ int *StructurePropagation::DP(const vector<PointPos> &samplePoints, vector<Point
 	for (int j = 0; j < samplePoints.size(); j++) {
 		if (M[curOffset + j] < min) {
 			sampleIndices[anchorPoints.size() - 1] = j;
+			min = M[curOffset + j];
 		}
 	}
 
@@ -660,7 +794,7 @@ double StructurePropagation::calcE2(const Mat &mat, const PointPos &i1, const Po
 	}
 }
 
-double StructurePropagation::calcEs(const PointPos &i, const PointPos &xi) {
+/*double StructurePropagation::calcEs(const PointPos &i, const PointPos &xi) {
 	vector<Point> points1, points2;
 	vector<int> minDistance1, minDistance2;
 	Point pi = pointManager.getPoint(i);
@@ -700,7 +834,76 @@ double StructurePropagation::calcEs(const PointPos &i, const PointPos &xi) {
 	for (int i = 0; i < minDistance2.size(); i++) {
 		es2 += minDistance2[i];
 	}
-	return (double)es1 / minDistance1.size() + (double)es2 / minDistance2.size();
+	 return ((double)es1 + (double)es2) / minDistance1.size();
+	// return (double)es1 / minDistance1.size() + (double)es2 / minDistance2.size();
+}*/
+
+double StructurePropagation::calcEs(const PointPos &i, const PointPos &xi) {
+	static vector<int> minDistance1, minDistance2;
+	Point pi = pointManager.getPoint(i);
+	Point pxi = pointManager.getPoint(xi);
+	int offsetx = pxi.x - pi.x;
+	int offsety = pxi.y - pi.y;
+	// get points of curve segment contained in patch
+	list<Point*> begin1, begin2;
+	list<int> length1, length2;
+	pointManager.getPointsinPatch(i, begin1, length1);
+	pointManager.getPointsinPatch(xi, begin2, length2);
+
+	assert(begin1.size() == length1.size());
+	assert(begin2.size() == length2.size());
+
+	list<int>::iterator lenItor;
+	int totalLen1 = 0, totalLen2 = 0;
+	for (lenItor = length1.begin(); lenItor != length1.end(); lenItor++) {
+		totalLen1 += *lenItor;
+	}
+	for (lenItor = length2.begin(); lenItor != length2.end(); lenItor++) {
+		totalLen2 += *lenItor;
+	}
+	minDistance1.resize(totalLen1);
+	minDistance2.resize(totalLen2);
+
+
+	// initialize minimal distance
+	for (int i = 0; i < totalLen1; i++) {
+		minDistance1[i] = INT_MAX;
+	}
+	for (int i = 0; i < totalLen2; i++) {
+		minDistance2[i] = INT_MAX;
+	}
+
+	list<int>::iterator lenItor1, lenItor2;
+	list<Point*>::iterator pointItor1, pointItor2;
+
+	for (lenItor1 = length1.begin(), pointItor1 = begin1.begin(); lenItor1 != length1.end(); lenItor1++, pointItor1++) {
+		Point *points1 = *pointItor1;
+		for (int i = 0; i < *lenItor1; i++) {
+			for (lenItor2 = length2.begin(), pointItor2 = begin2.begin(); lenItor2 != length2.end(); lenItor2++, pointItor2++) {
+				for (int j = 0; j < *lenItor2; j++) {
+					Point *points2 = *pointItor2;
+					int diffx = points1[i].x - points2[j].x + offsetx;
+					int diffy = points1[i].y - points2[j].y + offsety;
+					int distance = diffx*diffx + diffy*diffy;
+					if (distance < minDistance1[i]) {
+						minDistance1[i] = distance;
+					}
+					if (distance < minDistance2[j]) {
+						minDistance2[j] = distance;
+					}
+				}
+			}
+		}
+	}
+
+	int es1 = 0, es2 = 0;
+	for (int i = 0; i < minDistance1.size(); i++) {
+		es1 += minDistance1[i];
+	}
+	for (int i = 0; i < minDistance2.size(); i++) {
+		es2 += minDistance2[i];
+	}
+	return ((double)es1 + (double)es2) / minDistance1.size();
 }
 
 double StructurePropagation::calcEi(const Mat &mat, const PointPos &i, const PointPos &xi) {

@@ -161,7 +161,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				result = Mat::zeros(img.rows, img.cols, CV_8UC3);
 				img.copyTo(result, mask);
 				imshow("img", result);
-				imwrite("tmp_mask.jpg", mask);
+				imwrite("tmp_mask.bmp", mask);
 				result.copyTo(Local_Result_Copy);
 				result.copyTo(result_copy);
 				/*
@@ -172,7 +172,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				mousepoints.clear();
 			}
 		}
-		else if (c == 't'){
+		else if (c == 't') {
 			Mat tmp = result_copy.clone();
 			for (int i = 0; i < PointsList.size(); i++) {
 				DrawPoints(PointsList[i], img, CV_RGB(255, 0, 0), 1);
