@@ -530,13 +530,12 @@ void StructurePropagation::getResult(Mat1b mask,int *sampleIndices, const vector
 
 int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, const Mat &mat) {
 	// do initialization
-	int size = pointManager.getPropstackSize();
 	anchorPoints.clear();
-	anchorPoints.reserve(size);
+	anchorPoints.reserve(Node::totalNum);
 
-	list<shared_ptr<Node>>::iterator itor, begin, end;
-	pointManager.getPropstackItor(begin, end);
 	bool changed = true;
+	vector<shared_ptr<Node>>::iterator itor, begin, end;
+	pointManager.getNodesIterator(begin, end);
 	// receive message sent from other neighbors
 	while (changed) {
 		changed = false;
@@ -555,7 +554,7 @@ int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<Point
 						}
 					}
 					if (calculable) {
-						calcMij(*n, edgeItor, mat, samplePoints);
+						calcMij(n, edgeItor, mat, samplePoints);
 						changed = true;
 					}
 				}
@@ -563,26 +562,23 @@ int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<Point
 		}
 	}
 
+	//make sure all the message have been calculated
 	for (itor = begin; itor != end; itor++) {
 		list<shared_ptr<Edge>>::iterator edgeItor;
 		list<shared_ptr<Edge>> edges;
 		for (edgeItor = edges.begin(); edgeItor != edges.end(); edgeItor++) {
-			assert(*(*edgeItor)->getMbyFrom((*itor)->id) != NULL);
+			assert(*(*edgeItor)->getMbyFrom((*itor)) != NULL);
 		}
 	}
 
 	// send updated message back to neighbors
-	int *sampleIndices = (int*)malloc(size * sizeof(int));
+	int *sampleIndices = (int*)malloc(Node::totalNum * sizeof(int));
 	double *cur = (double*)malloc(samplePoints.size() * sizeof(double));
 
-	list<shared_ptr<Node>>::iterator rev_itor;
-	list<shared_ptr<Node>>::iterator rev_end;
-	pointManager.getPropstackItor(rev_itor, rev_end);
-	for (int i = 0; rev_itor != rev_end; rev_itor++, i++) {
-		shared_ptr<Node> n = *rev_itor;
-		list<shared_ptr<Edge>>::iterator begin = n->getEdgeBegin();
-		list<shared_ptr<Edge>>::iterator end = n->getEdgeEnd();
-		list<shared_ptr<Edge>>::iterator itor = begin;
+	itor = begin;
+	for (int i = 0; itor != end; itor++, i++) {
+		shared_ptr<Node> n = *itor;
+		list<shared_ptr<Edge>>::iterator itor;
 
 		anchorPoints.push_back(n->p);
 		int minIndex;
@@ -592,8 +588,8 @@ int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<Point
 			cur[i] = ks * calcEs(n->p, samplePoints[i]) + ki * calcEi(mat, n->p, samplePoints[i]);
 		}
 		// add up all messages sent to this node
-		for (itor = begin; itor == end; itor++) {
-			double **toMptr = (*itor)->getMbyTo(n->id);
+		for (itor = n->edges.begin(); itor == n->edges.end(); itor++) {
+			double **toMptr = (*itor)->getMbyTo(n);
 			for (int i = 0; i < samplePoints.size(); i++) {
 				cur[i] += (*toMptr)[i];
 			}
@@ -611,13 +607,11 @@ int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<Point
 	}
 
 	// release resources
-	pointManager.getPropstackItor(itor, end);
-	for (; itor != end; itor++) {
+	for (itor = begin; itor != end; itor++) {
 		shared_ptr<Node> n = *itor;
-		list<shared_ptr<Edge>>::iterator edgeItor = n->getEdgeBegin();
-		list<shared_ptr<Edge>>::iterator end = n->getEdgeEnd();
-		for (; edgeItor != end; edgeItor++) {
-			double **M = (*edgeItor)->getMbyFrom(n->id);
+		list<shared_ptr<Edge>>::iterator edgeItor;
+		for (edgeItor = n->edges.begin(); edgeItor != n->edges.end(); edgeItor++) {
+			double **M = (*edgeItor)->getMbyFrom(n);
 			if (*M != NULL) {
 				free(*M);
 			}
@@ -629,30 +623,29 @@ int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<Point
 }
 
 
-void StructurePropagation::calcMij(Node &n, const list<shared_ptr<Edge>>::iterator &edgeItor, const Mat &mat, const vector<PointPos> &samplePoints) {
-	double **Mptr = (*edgeItor)->getMbyFrom(n.id);
-	list<shared_ptr<Edge>>::iterator end = n.getEdgeEnd();
+void StructurePropagation::calcMij(shared_ptr<Node> &n, const list<shared_ptr<Edge>>::iterator &edgeItor, const Mat &mat, const vector<PointPos> &samplePoints) {
+	double **Mptr = (*edgeItor)->getMbyFrom(n);
 	if (*Mptr == NULL) {
 		*Mptr = (double*)malloc(samplePoints.size() * sizeof(double));
 		for (int i = 0; i < samplePoints.size(); i++) {
 			// calcalate Ei beforehand
-			double E1 = ks * calcEs(n.p, samplePoints[i]) + ki * calcEi(mat, n.p, samplePoints[i]);
+			double E1 = ks * calcEs(n->p, samplePoints[i]) + ki * calcEi(mat, n->p, samplePoints[i]);
 			// add up the message sent from Mki (k != j)
-			list<shared_ptr<Edge>>::iterator itor = n.getEdgeBegin();
+			list<shared_ptr<Edge>>::iterator itor;
 			double msg = 0.0;
-			for (; itor != end; itor++) {
+			for (itor = n->edges.begin(); itor != n->edges.end(); itor++) {
 				if (itor != edgeItor) {
-					double **toMptr = (*itor)->getMbyTo(n.id);
+					double **toMptr = (*itor)->getMbyTo(n);
 					if (*toMptr == NULL) {
 						assert(0);
 					}
 					msg += (*toMptr)[i];
 				}
 			}
-			PointPos tmpPos = pointManager.getPointPos((*edgeItor)->getAnother(n.id));
+			PointPos tmpPos = (*edgeItor)->getAnother(n)->p;
 			for (int j = 0; j < samplePoints.size(); j++) {
 				// try updating tne minimal value of each item in Mij
-				double E2 = calcE2(mat, n.p, tmpPos, samplePoints[i], samplePoints[j]);
+				double E2 = calcE2(mat, n->p, tmpPos, samplePoints[i], samplePoints[j]);
 				if (E1 + E2 + msg < (*Mptr)[j]) {
 					(*Mptr)[j] = E1 + E2 + msg;
 				}

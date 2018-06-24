@@ -352,11 +352,9 @@ void PointManager::constructBPMap(list<int> &line) {
 	map<int, list<PointPos>>::iterator mapItor;
 	list<shared_ptr<Node>> BFSstack;
 	vector<vector<ushort>> pointVisitedMarks(linePoints.size());
-	vector<list<shared_ptr<Node>>> nodeListBucket(4);
 	set<int> intersectionSet;
 	
 	nodes.clear();
-	propagationStack.clear();
 	Node::totalNum = 0;
 
 	// initialize the visit map
@@ -399,27 +397,21 @@ void PointManager::constructBPMap(list<int> &line) {
 		list<PointPos>::iterator listItor = mapItor->second.begin();
 		int neighborNum = 0;
 		for (; listItor != mapItor->second.end(); listItor++) {
-			neighborNum += addNeighbor(*n, *listItor, pointVisitedMarks, BFSstack);
+			neighborNum += addNeighbor(n, *listItor, pointVisitedMarks, BFSstack);
 		}
-		// Enlarge nodeListBucket if necessary
-		if (neighborNum > nodeListBucket.size()) {
-			nodeListBucket.resize(mapItor->second.size() * 2);
-		}
-		nodeListBucket[neighborNum - 1].push_front(n);
-		nodes.push_back(nodeListBucket[neighborNum - 1].begin());
+		nodes.push_back(n);
 		BFSstack.pop_front();
 	}
 
 	// start propagation
 	while (BFSstack.size()) {
 		shared_ptr<Node> n = *BFSstack.begin();
-		int neighborNum = addNeighbor(*n, n->p, pointVisitedMarks, BFSstack);
-		nodeListBucket[neighborNum - 1].push_front(n);
-		nodes.push_back(nodeListBucket[neighborNum - 1].begin());
+		int neighborNum = addNeighbor(n, n->p, pointVisitedMarks, BFSstack);
+		nodes.push_back(n);
 		BFSstack.pop_front();
 	}
 
-	//generate the sequence for message sending
+	/*//generate the sequence for message sending
 	while (nodeListBucket[0].size() > 0) {
 		shared_ptr<Node> n = *nodeListBucket[0].begin();
 		assert(n->getEdgeNum() == 1);
@@ -438,10 +430,10 @@ void PointManager::constructBPMap(list<int> &line) {
 		else {
 			nodes[id] = propagationStack.insert(propagationStack.end(), n);
 		}
-	}
+	}*/
 }
 
-int PointManager::addNeighbor(Node &n, const PointPos &pos, vector<vector<ushort>> &visitedMark, list<shared_ptr<Node>> &BFSstack) {
+int PointManager::addNeighbor(shared_ptr<Node> &n, const PointPos &pos, vector<vector<ushort>> &visitedMark, list<shared_ptr<Node>> &BFSstack) {
 	Endpoints endpoints = lineEnds[pos.lineIndex];
 	int lineIndex = endpoints.trueLineIndex;
 	int pointIndex = pos.pointIndex;
@@ -457,9 +449,9 @@ int PointManager::addNeighbor(Node &n, const PointPos &pos, vector<vector<ushort
 			if (visitedMark[lineIndex][i]) {
 				if (nodes.size() > visitedMark[lineIndex][i]) {
 					// add an edge between two points
-					shared_ptr<Edge> tmpEdge = make_shared<Edge>(n.id, visitedMark[lineIndex][i]);
-					n.push_front(tmpEdge);
-					(*nodes[visitedMark[lineIndex][i]])->push_back(tmpEdge);
+					shared_ptr<Edge> tmpEdge = make_shared<Edge>(n, nodes[visitedMark[lineIndex][i]]);
+					n->edges.push_back(tmpEdge);
+					nodes[visitedMark[lineIndex][i]]->edges.push_back(tmpEdge);
 				}
 				break;
 			}
@@ -480,9 +472,9 @@ int PointManager::addNeighbor(Node &n, const PointPos &pos, vector<vector<ushort
 			if (visitedMark[lineIndex][i]) {
 				if (nodes.size() > visitedMark[lineIndex][i]) {
 					// add an edge between two points
-					shared_ptr<Edge> tmpEdge = make_shared<Edge>(n.id, visitedMark[lineIndex][i]);
-					n.push_front(tmpEdge);
-					(*nodes[visitedMark[lineIndex][i]])->push_back(tmpEdge);
+					shared_ptr<Edge> tmpEdge = make_shared<Edge>(n, nodes[visitedMark[lineIndex][i]]);
+					n->edges.push_front(tmpEdge);
+					nodes[visitedMark[lineIndex][i]]->edges.push_back(tmpEdge);
 				}
 				break;
 			}
@@ -495,16 +487,6 @@ int PointManager::addNeighbor(Node &n, const PointPos &pos, vector<vector<ushort
 		neighborNum++;
 	}
 	return neighborNum;
-}
-
-void PointManager::getPropstackItor(list<shared_ptr<Node>>::iterator &begin, list<shared_ptr<Node>>::iterator &end) {
-	begin = propagationStack.begin();
-	end = propagationStack.end();
-}
-
-void PointManager::getPropstackReverseItor(list<shared_ptr<Node>>::reverse_iterator &begin, list<shared_ptr<Node>>::reverse_iterator &end) {
-	begin = list<shared_ptr<Node>>::reverse_iterator(propagationStack.end())++;
-	end = list<shared_ptr<Node>>::reverse_iterator(propagationStack.begin());
 }
 
 void PointManager::getSamplePoints(vector<PointPos> &samples, int sampleStep, list<int> &line) {

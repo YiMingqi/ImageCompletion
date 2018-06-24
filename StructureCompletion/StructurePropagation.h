@@ -35,5 +35,5 @@ private:
 	double calcEs(const PointPos &i, const PointPos &xi);
 	double calcEi(const Mat &mat, const PointPos &i, const PointPos &xi);
 	double calcE2(const Mat &mat, const PointPos &i1, const PointPos &i2, const PointPos &xi1, const PointPos &xi2);
-	void calcMij(Node &n, const list<shared_ptr<Edge>>::iterator &edgeItor, const Mat &mat, const vector<PointPos> &samplePoints);
+	void calcMij(shared_ptr<Node> &n, const list<shared_ptr<Edge>>::iterator &edgeItor, const Mat &mat, const vector<PointPos> &samplePoints);
 };
