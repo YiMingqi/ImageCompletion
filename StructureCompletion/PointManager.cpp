@@ -40,14 +40,14 @@ void PointManager::reset(const vector<vector<Point>> &linePoints, const Mat1b &m
 			else if (mask.at<uchar>(y, x)) {
 				// current line get out of the mask area, end this line
 				if (inMask == true) {
-					/*if (nearBoundary(linePoints[j][i], true)) {
+					if (nearBoundary(linePoints[j][i], true)) {
 						boundaryPoints.insert(PointPos(lineEnds.size(), i));
 					}
 					else {
 						endpoints.endIndex = i;
 						lineEnds.push_back(endpoints);
 						inMask = false;
-					}*/
+					}
 					endpoints.endIndex = i;
 					lineEnds.push_back(endpoints);
 					inMask = false;
@@ -368,7 +368,7 @@ void PointManager::constructBPMap(list<int> &line) {
 	int total = 0;
 	list<int>::iterator itor;
 	for (itor = line.begin(); itor != line.end(); itor++) {
-		total += linePoints[*itor].size();
+		total += lineEnds[*itor].endIndex - lineEnds[*itor].startIndex;
 		intersectionSet.insert(*itor);
 	}
 	// reserve enough space for the node table
@@ -422,7 +422,9 @@ void PointManager::constructBPMap(list<int> &line) {
 	//generate the sequence for message sending
 	while (nodeListBucket[0].size() > 0) {
 		shared_ptr<Node> n = *nodeListBucket[0].begin();
-		assert(n->getEdgeNum() == 1);
+		if (n->getEdgeNum() != 1) {
+			assert(n->getEdgeNum() == 1);
+		}
 		list<shared_ptr<Edge>>::iterator eItor = n->getEdgeBegin();
 		nodes[n->id] = propagationStack.insert(propagationStack.end(), n);
 		nodeListBucket[0].pop_front();

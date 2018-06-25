@@ -83,8 +83,9 @@ int _tmain(int argc, _TCHAR* argv[])
 	// img = imread("img_small.jpg", 1);
 	// mask = imread("mymask.bmp", 0);
 
-	img = imread("plant.jpg");
-	mask = Mat::zeros(img.rows, img.cols, CV_8UC1);
+	img = imread("plant.jpg", 1);
+	// mask = Mat::zeros(img.rows, img.cols, CV_8UC1);
+	mask = imread("tmp_mask.bmp", 0);
 	Mat1b Linemask = Mat::zeros(img.rows, img.cols, CV_8UC1);
 
 	threshold(mask,mask,125,255,CV_THRESH_BINARY_INV);
@@ -94,7 +95,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	//namedWindow("mask");
 	createTrackbar("BlockSize","img",&blocksize,50);
 	createTrackbar("SampleStep","img",&samplestep,20);
-	int iscurve_temp=true;
+	int iscurve_temp=false;
 	createTrackbar("iscurve","img",&iscurve_temp, 1);
 	setMouseCallback("img",onmouse);
 	imshow("img",result);
@@ -161,14 +162,13 @@ int _tmain(int argc, _TCHAR* argv[])
 				result = Mat::zeros(img.rows, img.cols, CV_8UC3);
 				img.copyTo(result, mask);
 				imshow("img", result);
-				imwrite("tmp_mask.bmp", mask);
+				// imwrite("tmp_mask.bmp", mask);
 				result.copyTo(Local_Result_Copy);
 				result.copyTo(result_copy);
-				/*
 				for (int i = 0; i < mask.rows;i++)
 				for (int j = 0; j < mask.cols; j++)mask.at<uchar>(i, j) = 255 - mask.at<uchar>(i, j);
-				imwrite("mymask.bmp", mask);
-				*/
+				imwrite("tmp_mask.bmp", mask);
+				
 				mousepoints.clear();
 			}
 		}

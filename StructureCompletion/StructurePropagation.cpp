@@ -394,7 +394,10 @@ void StructurePropagation::getResult(Mat1b mask,int *sampleIndices, const vector
 			int tary = tar.y + m;
 			const Vec3b* srcPtr = result.ptr<Vec3b>(src.y + m);
 			for (int n = -offset1; n < offset2; n++) {
-				result.at<Vec3b>(tar.y + m, tar.x + n) = srcPtr[src.x + n];
+				Vec3b tmp = result.at<Vec3b>(tar.y + m, tar.x + n);
+				if (tmp[0] == 0 && tmp[1] == 0 && tmp[2] == 0) {
+					result.at<Vec3b>(tar.y + m, tar.x + n) = srcPtr[src.x + n];
+				}
 			}
 		}
 		//brightness fix
@@ -451,7 +454,7 @@ void StructurePropagation::getResult(Mat1b mask,int *sampleIndices, const vector
 	free(sampleIndices);
 }
 
-/*int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, const Mat &mat) {
+int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, const Mat &mat) {
 	// do initialization
 	int size = pointManager.getPropstackSize();
 	anchorPoints.clear();
@@ -463,6 +466,8 @@ void StructurePropagation::getResult(Mat1b mask,int *sampleIndices, const vector
 	// receive message sent from other neighbors
 	for (; itor != end; itor++) {
 		shared_ptr<Node> n = *itor;
+		list<shared_ptr<Edge>> edges;
+		n->getEdges(edges);
 		// calculate message for next neighbor (the node that enqueued this node)
 		calcMij(*n, n->getEdgeBegin(), mat, samplePoints);
 	}
@@ -486,13 +491,13 @@ void StructurePropagation::getResult(Mat1b mask,int *sampleIndices, const vector
 			calcMij(*n, itor, mat, samplePoints);
 		}
 		int minIndex;
-		double min = INT_MAX;
+		double min = INT64_MAX;
 		// calculate E1 for all possible xi
 		for (int i = 0; i < samplePoints.size(); i++) {
 			cur[i] = ks * calcEs(n->p, samplePoints[i]) + ki * calcEi(mat, n->p, samplePoints[i]);
 		}
 		// add up all messages sent to this node
-		for (itor = begin; itor == end; itor++) {
+		for (itor = begin; itor != end; itor++) {
 			double **toMptr = (*itor)->getMbyTo(n->id);
 			for (int i = 0; i < samplePoints.size(); i++) {
 				cur[i] += (*toMptr)[i];
@@ -526,9 +531,9 @@ void StructurePropagation::getResult(Mat1b mask,int *sampleIndices, const vector
 	free(cur);
 
 	return sampleIndices;
-}*/
+}
 
-int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, const Mat &mat) {
+/*int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, const Mat &mat) {
 	// do initialization
 	int size = pointManager.getPropstackSize();
 	anchorPoints.clear();
@@ -626,7 +631,7 @@ int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<Point
 	free(cur);
 
 	return sampleIndices;
-}
+}*/
 
 
 void StructurePropagation::calcMij(Node &n, const list<shared_ptr<Edge>>::iterator &edgeItor, const Mat &mat, const vector<PointPos> &samplePoints) {
@@ -634,6 +639,7 @@ void StructurePropagation::calcMij(Node &n, const list<shared_ptr<Edge>>::iterat
 	list<shared_ptr<Edge>>::iterator end = n.getEdgeEnd();
 	if (*Mptr == NULL) {
 		*Mptr = (double*)malloc(samplePoints.size() * sizeof(double));
+		memset(*Mptr, 0, samplePoints.size() * sizeof(double));
 		for (int i = 0; i < samplePoints.size(); i++) {
 			// calcalate Ei beforehand
 			double E1 = ks * calcEs(n.p, samplePoints[i]) + ki * calcEi(mat, n.p, samplePoints[i]);
@@ -653,7 +659,7 @@ void StructurePropagation::calcMij(Node &n, const list<shared_ptr<Edge>>::iterat
 			for (int j = 0; j < samplePoints.size(); j++) {
 				// try updating tne minimal value of each item in Mij
 				double E2 = calcE2(mat, n.p, tmpPos, samplePoints[i], samplePoints[j]);
-				if (E1 + E2 + msg < (*Mptr)[j]) {
+				if ((*Mptr)[j] == 0 || E1 + E2 + msg < (*Mptr)[j]) {
 					(*Mptr)[j] = E1 + E2 + msg;
 				}
 			}
@@ -794,7 +800,7 @@ double StructurePropagation::calcE2(const Mat &mat, const PointPos &i1, const Po
 	}
 }
 
-/*double StructurePropagation::calcEs(const PointPos &i, const PointPos &xi) {
+double StructurePropagation::calcEs(const PointPos &i, const PointPos &xi) {
 	vector<Point> points1, points2;
 	vector<int> minDistance1, minDistance2;
 	Point pi = pointManager.getPoint(i);
@@ -834,11 +840,15 @@ double StructurePropagation::calcE2(const Mat &mat, const PointPos &i1, const Po
 	for (int i = 0; i < minDistance2.size(); i++) {
 		es2 += minDistance2[i];
 	}
+	if (es1 > 20) {
+		int i = 0;
+		i--;
+	}
 	 return ((double)es1 + (double)es2) / minDistance1.size();
 	// return (double)es1 / minDistance1.size() + (double)es2 / minDistance2.size();
-}*/
+}
 
-double StructurePropagation::calcEs(const PointPos &i, const PointPos &xi) {
+/*double StructurePropagation::calcEs(const PointPos &i, const PointPos &xi) {
 	static vector<int> minDistance1, minDistance2;
 	Point pi = pointManager.getPoint(i);
 	Point pxi = pointManager.getPoint(xi);
@@ -904,7 +914,7 @@ double StructurePropagation::calcEs(const PointPos &i, const PointPos &xi) {
 		es2 += minDistance2[i];
 	}
 	return ((double)es1 + (double)es2) / minDistance1.size();
-}
+}*/
 
 double StructurePropagation::calcEi(const Mat &mat, const PointPos &i, const PointPos &xi) {
 	if (pointManager.nearBoundary(i)) {
