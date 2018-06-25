@@ -134,6 +134,7 @@ private:
 	vector<Endpoints> lineEnds; //用于记录经过PointManager再次划分后的线段的首尾信息
 	set<PointPos> boundaryPoints; //用于记录所在patch与边界重叠的锚点
 	map<int, list<PointPos>> intersectingMap; //用于记录交点，键值为根据交点的真实坐标计算出的hash值
+	map<int, list<PointPos>> outIntersectingMap;
 	vector<list<shared_ptr<Node>>::iterator> nodes; //一张根据Node id查找node的表，记录着Node对象在双向链表中的迭代器
 	list<shared_ptr<Node>> propagationStack; //记录BP算法中信息传递的顺序
 

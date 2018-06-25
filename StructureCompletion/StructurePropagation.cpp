@@ -677,7 +677,7 @@ int *StructurePropagation::DP(const vector<PointPos> &samplePoints, vector<Point
 			ki * calcEi(mat, anchorPoints[0], samplePoints[i]);
 	}
 
-	int i, curOffset, preOffset;
+	int i, curOffset = 0, preOffset = 0;
 	for (i = 1; i < anchorPoints.size(); i++) {
 		curOffset = (i % 2) * samplePoints.size();
 		preOffset = ((i + 1) % 2) * samplePoints.size();
@@ -800,7 +800,7 @@ double StructurePropagation::calcE2(const Mat &mat, const PointPos &i1, const Po
 	}
 }
 
-double StructurePropagation::calcEs(const PointPos &i, const PointPos &xi) {
+/*double StructurePropagation::calcEs(const PointPos &i, const PointPos &xi) {
 	vector<Point> points1, points2;
 	vector<int> minDistance1, minDistance2;
 	Point pi = pointManager.getPoint(i);
@@ -840,15 +840,11 @@ double StructurePropagation::calcEs(const PointPos &i, const PointPos &xi) {
 	for (int i = 0; i < minDistance2.size(); i++) {
 		es2 += minDistance2[i];
 	}
-	if (es1 > 20) {
-		int i = 0;
-		i--;
-	}
 	 return ((double)es1 + (double)es2) / minDistance1.size();
 	// return (double)es1 / minDistance1.size() + (double)es2 / minDistance2.size();
-}
+}*/
 
-/*double StructurePropagation::calcEs(const PointPos &i, const PointPos &xi) {
+double StructurePropagation::calcEs(const PointPos &i, const PointPos &xi) {
 	static vector<int> minDistance1, minDistance2;
 	Point pi = pointManager.getPoint(i);
 	Point pxi = pointManager.getPoint(xi);
@@ -914,7 +910,7 @@ double StructurePropagation::calcEs(const PointPos &i, const PointPos &xi) {
 		es2 += minDistance2[i];
 	}
 	return ((double)es1 + (double)es2) / minDistance1.size();
-}*/
+}
 
 double StructurePropagation::calcEi(const Mat &mat, const PointPos &i, const PointPos &xi) {
 	if (pointManager.nearBoundary(i)) {

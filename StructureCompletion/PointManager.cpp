@@ -24,6 +24,7 @@ void PointManager::reset(const vector<vector<Point>> &linePoints, const Mat1b &m
 	lineEnds.clear();
 	boundaryPoints.clear();
 	intersectingMap.clear();
+	outIntersectingMap.clear();
 
 	// do preparation for the following operation
 	Mat visitMat = Mat::zeros(mask.rows, mask.cols, CV_32SC1);
@@ -52,6 +53,22 @@ void PointManager::reset(const vector<vector<Point>> &linePoints, const Mat1b &m
 					lineEnds.push_back(endpoints);
 					inMask = false;
 				}
+				int visitRecord = visitMat.at<int>(y, x); 
+					int lineIndex = getLineIndex(visitRecord); 
+					int pointIndex = getPointIndex(visitRecord); 
+					// check if this point is an intersection^M
+					if (visitRecord != 0 && lineIndex != lineEnds.size()) {
+						// record the position info of overlapping points in the intersectingMap^M
+						list<PointPos> *intersectingList = &outIntersectingMap[calcHashValue(x, y)];
+						if (intersectingList->size() == 0) {
+							intersectingList->push_back(PointPos(lineIndex, pointIndex));
+						}
+					intersectingList->push_back(PointPos(j, i));
+					}
+					else {
+						// mark the point as visited
+						visitMat.at<int>(y, x) = visit(j, i);
+					}
 			}
 			else {
 				// current patch crosses the boundary between img and mask
@@ -214,17 +231,22 @@ void PointManager::getPointsinPatch(const PointPos &p, list<Point*> &begin, list
 	int downBound = MIN(center.y + blockSize - blockSize / 2, mask.rows);
 	int hashValue = calcHashValue(center.x, center.y);
 	list<PointPos> pointPositions;
+	bool inMask = true;
 	// check if the the anchor point is an intersaction
 	// if it is, points of sevaral line segments will be returned
 	if (intersectingMap.count(hashValue)) {
 		pointPositions = intersectingMap[hashValue];
 	}
+	else if (outIntersectingMap.count(hashValue)) {
+		pointPositions = outIntersectingMap[hashValue];
+		inMask = false;
+	}
 	else {
 		pointPositions.push_back(p);
 	}
 	for (list<PointPos>::iterator p = pointPositions.begin(); p != pointPositions.end(); p++) {
-		Endpoints endPoints = lineEnds[p->lineIndex];
-		Point *points = &linePoints[endPoints.trueLineIndex][0];
+		int trueLineIndex = (inMask) ? lineEnds[p->lineIndex].trueLineIndex : p->lineIndex;
+		Point *points = &linePoints[trueLineIndex][0];
 		int beginIndex = p->pointIndex;
 		//find the start index of the line segment
 		for (int i = p->pointIndex; i >= 0; i--) {
@@ -236,14 +258,14 @@ void PointManager::getPointsinPatch(const PointPos &p, list<Point*> &begin, list
 		begin.push_back(points + beginIndex);
 		// get anchor points backward
 		int i;
-		for (i = p->pointIndex; i < linePoints[endPoints.trueLineIndex].size(); i++) {
+		for (i = p->pointIndex; i < linePoints[trueLineIndex].size(); i++) {
 			if (points[i].x < leftBound || points[i].y < upBound || points[i].x >= rightBound || points[i].y >= downBound) {
 				length.push_back(i - beginIndex);
 				break;
 			}
 		}
-		if (i == linePoints[endPoints.trueLineIndex].size()) {
-			length.push_back(linePoints[endPoints.trueLineIndex].size() - beginIndex);
+		if (i == linePoints[trueLineIndex].size()) {
+			length.push_back(linePoints[trueLineIndex].size() - beginIndex);
 		}
 	}
 }
@@ -468,7 +490,7 @@ int PointManager::addNeighbor(Node &n, const PointPos &pos, vector<vector<ushort
 		}
 		// no existed point can be chosen, construct a new anchor point and enqueue it
 		if (i == pointIndex) {
-			BFSstack.push_back(make_shared<Node>(PointPos(lineIndex, prePointIndex)));
+			BFSstack.push_back(make_shared<Node>(PointPos(pos.lineIndex, prePointIndex)));
 			visitedMark[lineIndex][prePointIndex] = Node::totalNum;
 		}
 		neighborNum++;
@@ -491,7 +513,7 @@ int PointManager::addNeighbor(Node &n, const PointPos &pos, vector<vector<ushort
 		}
 		// no existed point can be chosen, construct a new anchor point and enqueue it
 		if (i == pointIndex) {
-			BFSstack.push_back(make_shared<Node>(PointPos(lineIndex, nextPointIndex)));
+			BFSstack.push_back(make_shared<Node>(PointPos(pos.lineIndex, nextPointIndex)));
 			visitedMark[lineIndex][nextPointIndex] = Node::totalNum;
 		}
 		neighborNum++;
