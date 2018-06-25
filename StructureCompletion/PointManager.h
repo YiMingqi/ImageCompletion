@@ -13,7 +13,7 @@ class PointPos {
 public:
 	const int lineIndex;
 	const int pointIndex;
-	PointPos(int lineIndex = -1, int pointIndex = -1): lineIndex(lineIndex), pointIndex(pointIndex) {
+	PointPos(int lineIndex = -1, int pointIndex = -1) : lineIndex(lineIndex), pointIndex(pointIndex) {
 	}
 };
 
@@ -64,7 +64,7 @@ public:
 	ushort ni;
 	ushort nj;
 
-	Edge(ushort ni, ushort nj): ni(ni), nj(nj) {
+	Edge(ushort ni, ushort nj) : ni(ni), nj(nj) {
 		Mij = Mji = NULL;
 	}
 

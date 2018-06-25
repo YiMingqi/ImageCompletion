@@ -377,7 +377,8 @@ Vec3b fuse(Vec3b v1, Vec3b v2,double weight)
 	return res;
 }
 
-void StructurePropagation::getResult(Mat1b mask,int *sampleIndices, const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, Mat& result) {
+
+void StructurePropagation::getResult(Mat1b mask, int *sampleIndices, const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, Mat& result) {
 	// copy all sample patches to corresponding anchor pathces
 	for (int i = 0; i < anchorPoints.size(); i++) {
 		cout << sampleIndices[i] << ",";
@@ -402,20 +403,20 @@ void StructurePropagation::getResult(Mat1b mask,int *sampleIndices, const vector
 		}
 		//brightness fix
 		/*for (int m = -offset1; m < offset2; m++)
-			for (int n=-offset1;n<offset2;n++)
-			{
-				if (mask.at<uchar>(tar.y + m, tar.x + n) == 255)
-				{
-					// puts("fuse");
-					// printf("%d %d\n", tar.y + m, tar.x + n);
-					result.at<Vec3b>(tar.y + m, tar.x + n) = fuse(result.at<Vec3b>(src.y + m, src.x + n), result.at<Vec3b>(tar.y + m, tar.x + n),9*gauss(m*m+n*n));
-				}
-				else
-				{
-					result.at<Vec3b>(tar.y + m, tar.x + n) = result.at<Vec3b>(src.y + m, src.x + n);
-				}
-				mask.at<uchar>(tar.y + m, tar.x + n) = 255;
-			}*/
+		for (int n=-offset1;n<offset2;n++)
+		{
+		if (mask.at<uchar>(tar.y + m, tar.x + n) == 255)
+		{
+		// puts("fuse");
+		// printf("%d %d\n", tar.y + m, tar.x + n);
+		result.at<Vec3b>(tar.y + m, tar.x + n) = fuse(result.at<Vec3b>(src.y + m, src.x + n), result.at<Vec3b>(tar.y + m, tar.x + n),9*gauss(m*m+n*n));
+		}
+		else
+		{
+		result.at<Vec3b>(tar.y + m, tar.x + n) = result.at<Vec3b>(src.y + m, src.x + n);
+		}
+		mask.at<uchar>(tar.y + m, tar.x + n) = 255;
+		}*/
 		/*
 		if (i == 0) continue;
 		Point lasttar = pointManager.getPoint(anchorPoints[i - 1]);
@@ -426,28 +427,28 @@ void StructurePropagation::getResult(Mat1b mask,int *sampleIndices, const vector
 		for (int m = U; m < D; m++)
 		for (int n = L; n < R; n++)
 		{
-			double weight, W1, W2, W3, W4;
-			if (tx > lx)
-				W1 = R - n - 1, W2 = n - L;
-			else
-				W1 = n - L, W2 = R - n - 1;
+		double weight, W1, W2, W3, W4;
+		if (tx > lx)
+		W1 = R - n - 1, W2 = n - L;
+		else
+		W1 = n - L, W2 = R - n - 1;
 
-			if (ty > ly)
-				W3 = D - m - 1, W4 = m - U;
-			else
-				W3 = m - U, W4 = D - m - 1;
-			weight = W1*W3 / (W1*W3 + W2*W4);
-			int dy = m - ty, dx = n - tx;
-			for (int ch = 0; ch < 3; ch++)
-			{
-				int ret;
-				int v1 = result.at<Vec3b>(m, n)[ch];
-				//int tmp1 = sy + dy;
-				//int tmp2 = sx + dx;
-				int v2 = result.at<Vec3b>(sy + dy, sx + dx)[ch];
-				ret = v2 * weight - v1 * (1 - weight);
-				result.at<Vec3b>(m, n)[ch] = ret;
-			}
+		if (ty > ly)
+		W3 = D - m - 1, W4 = m - U;
+		else
+		W3 = m - U, W4 = D - m - 1;
+		weight = W1*W3 / (W1*W3 + W2*W4);
+		int dy = m - ty, dx = n - tx;
+		for (int ch = 0; ch < 3; ch++)
+		{
+		int ret;
+		int v1 = result.at<Vec3b>(m, n)[ch];
+		//int tmp1 = sy + dy;
+		//int tmp2 = sx + dx;
+		int v2 = result.at<Vec3b>(sy + dy, sx + dx)[ch];
+		ret = v2 * weight - v1 * (1 - weight);
+		result.at<Vec3b>(m, n)[ch] = ret;
+		}
 		}
 		*/
 	}
@@ -534,103 +535,103 @@ int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<Point
 }
 
 /*int *StructurePropagation::BP(const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, const Mat &mat) {
-	// do initialization
-	int size = pointManager.getPropstackSize();
-	anchorPoints.clear();
-	anchorPoints.reserve(size);
+// do initialization
+int size = pointManager.getPropstackSize();
+anchorPoints.clear();
+anchorPoints.reserve(size);
 
-	list<shared_ptr<Node>>::iterator itor, begin, end;
-	pointManager.getPropstackItor(begin, end);
-	bool changed = true;
-	// receive message sent from other neighbors
-	while (changed) {
-		changed = false;
-		for (itor = begin; itor != end; itor++) {
-			shared_ptr<Node> n = *itor;
-			list<shared_ptr<Edge>> edges;
-			n->getEdges(edges);
-			list<shared_ptr<Edge>>::iterator edgeItor;
-			for (edgeItor = edges.begin(); edgeItor != edges.end(); edgeItor++) {
-				if (*edgeItor == NULL) {
-					list<shared_ptr<Edge>>::iterator tmpItor;
-					int calculable = true;
-					for (tmpItor = edges.begin(); tmpItor != edges.end(); tmpItor++) {
-						if (tmpItor != edgeItor) {
-							calculable = (*tmpItor != NULL);
-						}
-					}
-					if (calculable) {
-						calcMij(*n, edgeItor, mat, samplePoints);
-						changed = true;
-					}
-				}
-			}
-		}
-	}
+list<shared_ptr<Node>>::iterator itor, begin, end;
+pointManager.getPropstackItor(begin, end);
+bool changed = true;
+// receive message sent from other neighbors
+while (changed) {
+changed = false;
+for (itor = begin; itor != end; itor++) {
+shared_ptr<Node> n = *itor;
+list<shared_ptr<Edge>> edges;
+n->getEdges(edges);
+list<shared_ptr<Edge>>::iterator edgeItor;
+for (edgeItor = edges.begin(); edgeItor != edges.end(); edgeItor++) {
+if (*edgeItor == NULL) {
+list<shared_ptr<Edge>>::iterator tmpItor;
+int calculable = true;
+for (tmpItor = edges.begin(); tmpItor != edges.end(); tmpItor++) {
+if (tmpItor != edgeItor) {
+calculable = (*tmpItor != NULL);
+}
+}
+if (calculable) {
+calcMij(*n, edgeItor, mat, samplePoints);
+changed = true;
+}
+}
+}
+}
+}
 
-	for (itor = begin; itor != end; itor++) {
-		list<shared_ptr<Edge>>::iterator edgeItor;
-		list<shared_ptr<Edge>> edges;
-		for (edgeItor = edges.begin(); edgeItor != edges.end(); edgeItor++) {
-			assert(*(*edgeItor)->getMbyFrom((*itor)->id) != NULL);
-		}
-	}
+for (itor = begin; itor != end; itor++) {
+list<shared_ptr<Edge>>::iterator edgeItor;
+list<shared_ptr<Edge>> edges;
+for (edgeItor = edges.begin(); edgeItor != edges.end(); edgeItor++) {
+assert(*(*edgeItor)->getMbyFrom((*itor)->id) != NULL);
+}
+}
 
-	// send updated message back to neighbors
-	int *sampleIndices = (int*)malloc(size * sizeof(int));
-	double *cur = (double*)malloc(samplePoints.size() * sizeof(double));
+// send updated message back to neighbors
+int *sampleIndices = (int*)malloc(size * sizeof(int));
+double *cur = (double*)malloc(samplePoints.size() * sizeof(double));
 
-	list<shared_ptr<Node>>::iterator rev_itor;
-	list<shared_ptr<Node>>::iterator rev_end;
-	pointManager.getPropstackItor(rev_itor, rev_end);
-	for (int i = 0; rev_itor != rev_end; rev_itor++, i++) {
-		shared_ptr<Node> n = *rev_itor;
-		list<shared_ptr<Edge>>::iterator begin = n->getEdgeBegin();
-		list<shared_ptr<Edge>>::iterator end = n->getEdgeEnd();
-		list<shared_ptr<Edge>>::iterator itor = begin;
+list<shared_ptr<Node>>::iterator rev_itor;
+list<shared_ptr<Node>>::iterator rev_end;
+pointManager.getPropstackItor(rev_itor, rev_end);
+for (int i = 0; rev_itor != rev_end; rev_itor++, i++) {
+shared_ptr<Node> n = *rev_itor;
+list<shared_ptr<Edge>>::iterator begin = n->getEdgeBegin();
+list<shared_ptr<Edge>>::iterator end = n->getEdgeEnd();
+list<shared_ptr<Edge>>::iterator itor = begin;
 
-		anchorPoints.push_back(n->p);
-		int minIndex;
-		double min = INT_MAX;
-		// calculate E1 for all possible xi
-		for (int i = 0; i < samplePoints.size(); i++) {
-			cur[i] = ks * calcEs(n->p, samplePoints[i]) + ki * calcEi(mat, n->p, samplePoints[i]);
-		}
-		// add up all messages sent to this node
-		for (itor = begin; itor == end; itor++) {
-			double **toMptr = (*itor)->getMbyTo(n->id);
-			for (int i = 0; i < samplePoints.size(); i++) {
-				cur[i] += (*toMptr)[i];
-			}
-		}
-		// find out the optimal xi
-		for (int i = 0; i < samplePoints.size(); i++) {
-			if (cur[i] < min) {
-				min = cur[i];
-				minIndex = i;
-			}
-		}
-		// cout << n->p.lineIndex << " " << n->p.pointIndex << " | ";
-		// cout <<  i << " " << minIndex << endl;
-		sampleIndices[i] = minIndex;
-	}
+anchorPoints.push_back(n->p);
+int minIndex;
+double min = INT_MAX;
+// calculate E1 for all possible xi
+for (int i = 0; i < samplePoints.size(); i++) {
+cur[i] = ks * calcEs(n->p, samplePoints[i]) + ki * calcEi(mat, n->p, samplePoints[i]);
+}
+// add up all messages sent to this node
+for (itor = begin; itor == end; itor++) {
+double **toMptr = (*itor)->getMbyTo(n->id);
+for (int i = 0; i < samplePoints.size(); i++) {
+cur[i] += (*toMptr)[i];
+}
+}
+// find out the optimal xi
+for (int i = 0; i < samplePoints.size(); i++) {
+if (cur[i] < min) {
+min = cur[i];
+minIndex = i;
+}
+}
+// cout << n->p.lineIndex << " " << n->p.pointIndex << " | ";
+// cout <<  i << " " << minIndex << endl;
+sampleIndices[i] = minIndex;
+}
 
-	// release resources
-	pointManager.getPropstackItor(itor, end);
-	for (; itor != end; itor++) {
-		shared_ptr<Node> n = *itor;
-		list<shared_ptr<Edge>>::iterator edgeItor = n->getEdgeBegin();
-		list<shared_ptr<Edge>>::iterator end = n->getEdgeEnd();
-		for (; edgeItor != end; edgeItor++) {
-			double **M = (*edgeItor)->getMbyFrom(n->id);
-			if (*M != NULL) {
-				free(*M);
-			}
-		}
-	}
-	free(cur);
+// release resources
+pointManager.getPropstackItor(itor, end);
+for (; itor != end; itor++) {
+shared_ptr<Node> n = *itor;
+list<shared_ptr<Edge>>::iterator edgeItor = n->getEdgeBegin();
+list<shared_ptr<Edge>>::iterator end = n->getEdgeEnd();
+for (; edgeItor != end; edgeItor++) {
+double **M = (*edgeItor)->getMbyFrom(n->id);
+if (*M != NULL) {
+free(*M);
+}
+}
+}
+free(cur);
 
-	return sampleIndices;
+return sampleIndices;
 }*/
 
 
@@ -701,15 +702,15 @@ int *StructurePropagation::DP(const vector<PointPos> &samplePoints, vector<Point
 			M[curOffset + j] = E1 + min;
 		}
 		/*for (int i = 0; i < samplePoints.size(); i++) {
-			cout << M[preOffset + i] << ", ";
+		cout << M[preOffset + i] << ", ";
 		}
 		cout << endl;
 		for (int j = 0; j < samplePoints.size(); j++) {
-			cout << samplePoints.size()*i + j << ", ";
+		cout << samplePoints.size()*i + j << ", ";
 		}
 		cout << endl;
 		for (int i = 0; i < samplePoints.size(); i++) {
-			cout << M[curOffset + i] << ", ";
+		cout << M[curOffset + i] << ", ";
 		}
 		cout << endl;*/
 	}
@@ -801,47 +802,47 @@ double StructurePropagation::calcE2(const Mat &mat, const PointPos &i1, const Po
 }
 
 /*double StructurePropagation::calcEs(const PointPos &i, const PointPos &xi) {
-	vector<Point> points1, points2;
-	vector<int> minDistance1, minDistance2;
-	Point pi = pointManager.getPoint(i);
-	Point pxi = pointManager.getPoint(xi);
-	int offsetx = pxi.x - pi.x;
-	int offsety = pxi.y - pi.y;
-	// get points of curve segment contained in patch
-	pointManager.getPointsinPatch(i, points1);
-	pointManager.getPointsinPatch(xi, points2);
-	minDistance1.resize(points1.size());
-	minDistance2.resize(points2.size());
-	// initialize minimal distance
-	for (int i = 0; i < points1.size(); i++) {
-		minDistance1[i] = INT_MAX;
-	}
-	for (int i = 0; i < points2.size(); i++) {
-		minDistance2[i] = INT_MAX;
-	}
-	// calculate the minimal distances for points in curve segments
-	for (int i = 0; i < points1.size(); i++) {
-		for (int j = 0; j < points2.size(); j++) {
-			int diffx = points1[i].x - points2[j].x + offsetx;
-			int diffy = points1[i].y - points2[j].y + offsety;
-			int distance = diffx*diffx + diffy*diffy;
-			if (distance < minDistance1[i]) {
-				minDistance1[i] = distance;
-			}
-			if (distance < minDistance2[j]) {
-				minDistance2[j] = distance;
-			}
-		}
-	}
-	int es1 = 0, es2 = 0;
-	for (int i = 0; i < minDistance1.size(); i++) {
-		es1 += minDistance1[i];
-	}
-	for (int i = 0; i < minDistance2.size(); i++) {
-		es2 += minDistance2[i];
-	}
-	 return ((double)es1 + (double)es2) / minDistance1.size();
-	// return (double)es1 / minDistance1.size() + (double)es2 / minDistance2.size();
+vector<Point> points1, points2;
+vector<int> minDistance1, minDistance2;
+Point pi = pointManager.getPoint(i);
+Point pxi = pointManager.getPoint(xi);
+int offsetx = pxi.x - pi.x;
+int offsety = pxi.y - pi.y;
+// get points of curve segment contained in patch
+pointManager.getPointsinPatch(i, points1);
+pointManager.getPointsinPatch(xi, points2);
+minDistance1.resize(points1.size());
+minDistance2.resize(points2.size());
+// initialize minimal distance
+for (int i = 0; i < points1.size(); i++) {
+minDistance1[i] = INT_MAX;
+}
+for (int i = 0; i < points2.size(); i++) {
+minDistance2[i] = INT_MAX;
+}
+// calculate the minimal distances for points in curve segments
+for (int i = 0; i < points1.size(); i++) {
+for (int j = 0; j < points2.size(); j++) {
+int diffx = points1[i].x - points2[j].x + offsetx;
+int diffy = points1[i].y - points2[j].y + offsety;
+int distance = diffx*diffx + diffy*diffy;
+if (distance < minDistance1[i]) {
+minDistance1[i] = distance;
+}
+if (distance < minDistance2[j]) {
+minDistance2[j] = distance;
+}
+}
+}
+int es1 = 0, es2 = 0;
+for (int i = 0; i < minDistance1.size(); i++) {
+es1 += minDistance1[i];
+}
+for (int i = 0; i < minDistance2.size(); i++) {
+es2 += minDistance2[i];
+}
+return ((double)es1 + (double)es2) / minDistance1.size();
+// return (double)es1 / minDistance1.size() + (double)es2 / minDistance2.size();
 }*/
 
 double StructurePropagation::calcEs(const PointPos &i, const PointPos &xi) {
@@ -940,5 +941,3 @@ double StructurePropagation::calcEi(const Mat &mat, const PointPos &i, const Poi
 		return 0.0;
 	}
 }
-
-
