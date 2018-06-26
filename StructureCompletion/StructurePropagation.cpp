@@ -633,11 +633,27 @@ void StructurePropagation::getResult(Mat1b mask, int *sampleIndices, const vecto
 			const Vec3b* srcPtr = result.ptr<Vec3b>(src.y + m);
 			for (int n = -offset1; n < offset2; n++) {
 				Vec3b tmp = result.at<Vec3b>(tar.y + m, tar.x + n);
+				if (my_mask[tar.y + m][tar.x + n] == 0) {
+					result.at<Vec3b>(tar.y + m, tar.x + n) = srcPtr[src.x + n];
+					my_mask[tar.y + m][tar.x + n] = 1;
+				}
+				else {
+					result.at<Vec3b>(tar.y + m, tar.x + n) = fuse(srcPtr[src.x + n], result.at<Vec3b>(tar.y + m, tar.x + n), 0.5);
+				}
+			}
+		}
+
+		/*
+		for (int m = -offset1; m < offset2; m++) {
+			int tary = tar.y + m;
+			const Vec3b* srcPtr = result.ptr<Vec3b>(src.y + m);
+			for (int n = -offset1; n < offset2; n++) {
+				Vec3b tmp = result.at<Vec3b>(tar.y + m, tar.x + n);
 				if (tmp[0] == 0 && tmp[1] == 0 && tmp[2] == 0) {
 					result.at<Vec3b>(tar.y + m, tar.x + n) = srcPtr[src.x + n];
 				}
 			}
-		}
+		}*/
 		
 
 		//brightness fix
