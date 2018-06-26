@@ -71,21 +71,28 @@ void onmouse(int event,int x,int y,int flags,void* parm)
 
 int _tmain(int argc, _TCHAR* argv[])
 {
-	// img=imread("img.jpg",1);
-	// mask=imread("mask.bmp",0);
+	mask = Mat::zeros(img.rows, img.cols, CV_8UC1);
+	//img=imread("img.jpg",1);
+	//mask=imread("mask.bmp",0);
 
-	// img=imread("curve_test1.png",1);
-	// mask=imread("curve_test1.bmp",0);
+	//img=imread("curve_test1.png",1);
+	//mask=imread("curve_test1.bmp",0);
 
-	// img = imread("curve_test2.png", 1);
-	// mask = imread("curve_test2.bmp", 0);
+	//img = imread("curve_test2.png", 1);
+	//mask = imread("curve_test2.bmp", 0);
 
-	// img = imread("img_small.jpg", 1);
-	// mask = imread("mymask.bmp", 0);
+	img = imread("img_small.jpg", 1);//5,1
+	mask = imread("mymask.bmp", 0);
 
-	img = imread("plant.jpg", 1);
-	// mask = Mat::zeros(img.rows, img.cols, CV_8UC1);
-	mask = imread("tmp_mask.bmp", 0);
+	//img = imread("K.png", 1);
+	//mask=imread("K.bmp",0);
+
+	//img = imread("img1.jpg", 1);
+	//mask=imread("mask1.bmp",0);
+
+	//img = imread("plant_small.jpg", 1);
+	//img = imread("plant.jpg", 1);
+	//mask = imread("tmp_mask.bmp", 0);
 	Mat1b Linemask = Mat::zeros(img.rows, img.cols, CV_8UC1);
 
 	threshold(mask,mask,125,255,CV_THRESH_BINARY_INV);
@@ -178,7 +185,7 @@ int _tmain(int argc, _TCHAR* argv[])
 				DrawPoints(PointsList[i], img, CV_RGB(255, 0, 0), 1);
 			}
 			imshow("img", Local_Result_Copy);
-			SP.TextureCompletion(mask, Linemask, tmp, Local_Result_Copy);
+			SP.TextureCompletion2(mask, Linemask, tmp, Local_Result_Copy);
 			imshow("img", Local_Result_Copy);
 		}
 	}

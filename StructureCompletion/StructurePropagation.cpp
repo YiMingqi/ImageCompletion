@@ -25,15 +25,17 @@ void StructurePropagation::Run(const Mat1b &_mask, const Mat& _img, Mat1b &Linem
 	vector<PointPos> samplePoints;
 	set<shared_ptr<list<int>>>::iterator itor;
 	for (itor = lineSets.begin(); itor != lineSets.end(); itor++) {
-		pointManager.getSamplePoints(samplePoints, sampleStep/*, **itor*/);
+		pointManager.getSamplePoints(samplePoints, sampleStep, **itor);
 		if (samplePoints.size() == 0){
 			continue;
 		}
 		if ((*itor)->size() == 1) {
+			puts("DP");
 			pointManager.getAnchorPoints(anchorPoints, **itor);
 			sampleIndices = DP(samplePoints, anchorPoints, grayMat);
 		}
 		else {
+			puts("BP");
 			pointManager.constructBPMap(**itor);
 			/*list<shared_ptr<Node>>::iterator begin, end;
 			pointManager.getPropstackItor(begin, end);
@@ -127,8 +129,178 @@ int sqr(int x)
 
 int dist(Vec3b V1, Vec3b V2)
 {
-	return sqr(V1[0] - V2[0]) + sqr(V1[1] - V2[1]) + sqr(V1[2] - V2[2]);
+	return sqr(int(V1[0]) - int(V2[0])) + sqr(int(V1[1]) - int(V2[1])) + sqr(int(V1[2]) - int(V2[2]));
+	/*double pr = (V1[0] + V2[0]) * 0.5;
+	return sqr(V1[0] - V2[0]) * (2 + (255 - pr) / 256)
+	+ sqr(V1[1] - V2[1]) * 4
+	+ sqr(V1[2] - V2[2]) * (2 + pr / 256);*/
 }
+
+void StructurePropagation::TextureCompletion2(Mat1b _mask, Mat1b LineMask, const Mat &mat, Mat &result)
+{
+	int N = _mask.rows;
+	int M = _mask.cols;
+	int knowncount = 0;
+	for (int i = 0; i < N;i++)
+	for (int j = 0; j < M; j++)
+	{
+		knowncount += (_mask.at<uchar>(i, j) == 255);
+	}
+	if (knowncount * 2< N * M)
+	{
+		for (int i = 0; i < N;i++)
+		for (int j = 0; j < M; j++)
+			_mask.at<uchar>(i, j) = 255 - _mask.at<uchar>(i, j);
+	}
+	
+	vector<vector<int> >my_mask(N, vector<int>(M, 0)), sum_diff(N, vector<int>(M, 0));
+	
+	for (int i = 0; i < N;i++)
+	for (int j = 0; j < M; j++)
+	LineMask.at<uchar>(i, j) = LineMask.at<uchar>(i, j) * 100;
+	
+	result = mat.clone();
+	imshow("mask", _mask);
+	imshow("linemask", LineMask);
+	for (int i = 0; i < N; i++)
+	for (int j = 0; j < M; j++)
+	{
+		my_mask[i][j] = (_mask.at<uchar>(i, j) == 255);
+		if (my_mask[i][j] == 0 && LineMask.at<uchar>(i, j) > 0)
+		{
+			my_mask[i][j] = 2;
+		}
+	}
+	int bs = 5;
+	int step = 1 * bs;
+	auto usable(my_mask);
+	int to_fill = 0, filled = 0;
+	for (int i = 0; i < N; i++)
+	for (int j = 0; j < M; j++)
+	{
+		to_fill += (my_mask[i][j] == 0);
+	}
+	for (int i = 0; i < N; i++)
+	for (int j = 0; j < M; j++)
+	{
+		if (my_mask[i][j] == 1)
+			continue;
+		int k0 = max(0, i - step), k1 = min(N - 1, i + step);
+		int l0 = max(0, j - step), l1 = min(M - 1, j + step);
+		for (int k = k0; k <= k1; k++)
+		for (int l = l0; l <= l1; l++)
+			usable[k][l] = 2;
+	}
+	Mat use = _mask.clone();
+	for (int i = 0; i < N; i++)
+	for (int j = 0; j < M; j++)
+	if (usable[i][j] == 2)
+		use.at<uchar>(i, j) = 255;
+	else use.at<uchar>(i, j) = 0;
+	//imshow("usable", use);
+	int itertime = 0;
+	Mat match;
+	while (true)
+	{
+		itertime++;
+		int x, y, cnt = -1;
+		for (int i = 0; i < N; i++)
+		for (int j = 0; j < M; j++)
+		{
+			if (my_mask[i][j] != 0) continue;
+			bool edge = false;
+			int k0 = max(0, i - 1), k1 = min(N - 1, i + 1);
+			int l0 = max(0, j - 1), l1 = min(M - 1, j + 1);
+			for (int k = k0; k <= k1;k++)
+			for (int l = l0; l <= l1; l++)
+				edge |= (my_mask[k][l] == 1);
+			if (!edge) continue;
+			k0 = max(0, i - bs), k1 = min(N - 1, i + bs);
+			l0 = max(0, j - bs), l1 = min(M - 1, j + bs);
+			int tmpcnt = 0;
+			for (int k = k0; k <= k1; k++)
+			for (int l = l0; l <= l1; l++)
+				tmpcnt += (my_mask[k][l] == 1);
+			if (tmpcnt > cnt)
+			{
+				cnt = tmpcnt;
+				x = i;
+				y = j;
+			}
+		}
+		if (cnt == -1) break;
+
+		bool debug = false;
+		bool debug2 = false;
+		int k0 = min(x, bs), k1 = min(N - 1 - x, bs);
+		int l0 = min(y, bs), l1 = min(M - 1 - y, bs);
+		int sx, sy, min_diff = INT_MAX;
+		for (int i = step; i + step < N; i += step)
+		for (int j = step; j + step < M; j += step)
+		{
+			if (usable[i][j] == 2)continue;
+			int tmp_diff = 0;
+			for (int k = -k0; k <= k1; k++)
+			for (int l = -l0; l <= l1; l++)
+			{
+				//printf("%d %d %d %d %d %d\n", i + k, j + l, x + k, y + l, N, M);
+				if (my_mask[x + k][y + l] != 0)
+					tmp_diff += dist(result.at<Vec3b>(i + k, j + l), result.at<Vec3b>(x + k, y + l));
+			}
+			sum_diff[i][j] = tmp_diff;
+			if (min_diff > tmp_diff)
+			{
+				sx = i;
+				sy = j;
+				min_diff = tmp_diff;
+			}
+		}
+
+
+		if (debug)
+		{
+			printf("x = %d y = %d\n", x, y);
+			printf("sx = %d sy = %d\n", sx, sy);
+			printf("mindiff = %d\n", min_diff);
+		}
+		if (debug2)
+		{
+			match = result.clone();
+		}
+		for (int k = -k0; k <= k1; k++)
+		for (int l = -l0; l <= l1; l++)
+		if (my_mask[x + k][y + l] == 0)
+		{
+			result.at<Vec3b>(x + k, y + l) = result.at<Vec3b>(sx + k, sy + l);
+			my_mask[x + k][y + l] = 1;
+			filled++;
+			if (debug)
+			{
+				result.at<Vec3b>(x + k, y + l) = Vec3b(255, 0, 0);
+				result.at<Vec3b>(sx + k, sy + l) = Vec3b(0, 255, 0);
+			}
+			if (debug2)
+			{
+				match.at<Vec3b>(x + k, y + l) = Vec3b(255, 0, 0);
+				match.at<Vec3b>(sx + k, sy + l) = Vec3b(0, 255, 0);
+			}
+		}
+		else
+		{
+			if (debug)
+			{
+				printf("(%d,%d,%d) matches (%d,%d,%d)\n", result.at<Vec3b>(x + k, y + l)[0], result.at<Vec3b>(x + k, y + l)[1], result.at<Vec3b>(x + k, y + l)[2], result.at<Vec3b>(sx + k, sy + l)[0], result.at<Vec3b>(sx + k, sy + l)[1], result.at<Vec3b>(sx + k, sy + l)[2]);
+			}
+		}
+		if (debug2)
+		{
+			imshow("match", match);
+		}
+		if (debug) return;
+		printf("done :%.2lf%%\n", 100.0 * filled / to_fill);
+	}
+}
+
 
 void StructurePropagation::TextureCompletion(const Mat1b &_mask, Mat1b &LineMask, const Mat &mat, Mat &result)
 {
@@ -377,6 +549,14 @@ Vec3b fuse(Vec3b v1, Vec3b v2,double weight)
 	return res;
 }
 
+uchar adjust(uchar v0, double alpha, uchar v1, uchar v2)
+{
+	int V0 = v0, V1 = v1, V2 = v2;
+	double result = V0 + alpha * (v2 - v1);
+	if (result > 255 || result < 1) return V0;
+	return uchar(result);
+}
+
 
 void StructurePropagation::getResult(Mat1b mask, int *sampleIndices, const vector<PointPos> &samplePoints, vector<PointPos> &anchorPoints, Mat& result) {
 	// copy all sample patches to corresponding anchor pathces
@@ -387,10 +567,67 @@ void StructurePropagation::getResult(Mat1b mask, int *sampleIndices, const vecto
 	cout << "anchor number: " << anchorPoints.size() << endl;
 	int offset1 = blockSize / 2;
 	int offset2 = blockSize - offset1;
+	int N = mask.rows, M = mask.cols;
+	vector<vector<int> > my_mask(N, vector<int>(M, 0));
+	for (int i = 0; i < N;i++)
+	for (int j = 0; j < M; j++)
+	{
+		my_mask[i][j] = (mask.at<uchar>(i, j) > 0);
+		if (my_mask[i][j]) mask.at<uchar>(i, j) = 255;
+	}
+	//imshow("mask", mask);
 	for (int i = 0; i < anchorPoints.size(); i++) {
 		Point src = pointManager.getPoint(samplePoints[sampleIndices[i]]);
 		Point tar = pointManager.getPoint(anchorPoints[i]);
-		// printf("%d %d %d\n", i, tar.y, tar.x);
+		
+		/*
+		for (int m = -offset1; m < offset2; m++) {
+			int tary = tar.y + m;
+			const Vec3b* srcPtr = result.ptr<Vec3b>(src.y + m);
+			
+			if (my_mask[tar.y + m][tar.x - offset1] == 0)
+			{
+				result.at<Vec3b>(tar.y + m, tar.x - offset1) = srcPtr[src.x - offset1];
+				my_mask[tar.y + m][tar.x - offset1] = 1;
+			}
+			if (my_mask[tar.y + m][tar.x + offset2 - 1] == 0)
+			{
+				result.at<Vec3b>(tar.y + m, tar.x + offset2 - 1) = srcPtr[src.x +offset2 - 1];
+				my_mask[tar.y + m][tar.x + offset2 - 1] = 1;
+			}
+			int n = -offset1;
+			while (n < offset2)
+			{
+				if (my_mask[tar.y + m][tar.x + n] == 1)
+				{
+					n++;
+					continue;
+				}
+				//printf("%d %d\n", tar.y + m, tar.x + n);
+				int nxt = n;
+				while (my_mask[tar.y + m][tar.x + nxt] == 0)
+				{
+					nxt++;
+					//printf("%d %d\n", nxt, offset2);
+				}
+				for (int ch = 0; ch < 3; ch++)
+				{
+					int srcdelta = int(result.at<Vec3b>(src.y + m, src.x + nxt)[ch] - int(result.at<Vec3b>(src.y + m, src.x + n - 1)[ch]));
+					int tardelta = int(result.at<Vec3b>(tar.y + m, tar.x + nxt)[ch] - int(result.at<Vec3b>(tar.y + m, tar.x + n - 1)[ch]));
+					if (srcdelta == 0) srcdelta = 1;
+					double alpha = 1.0 * tardelta / srcdelta;
+					for (int i = n; i < nxt; i++)
+					{
+						result.at<Vec3b>(tar.y + m, tar.x + i)[ch] = adjust(result.at<Vec3b>(tar.y + m, tar.x + i - 1)[ch], alpha, result.at<Vec3b>(src.y + m, src.x + i - 1)[ch], result.at<Vec3b>(src.y + m, src.x + i)[ch]);
+					}
+				}
+				n = nxt;
+			}
+			for (int n = -offset1; n < offset2; n++)
+				my_mask[tar.y + m][tar.x + n] = 1;
+
+		}*/
+		
 		for (int m = -offset1; m < offset2; m++) {
 			int tary = tar.y + m;
 			const Vec3b* srcPtr = result.ptr<Vec3b>(src.y + m);
@@ -401,6 +638,8 @@ void StructurePropagation::getResult(Mat1b mask, int *sampleIndices, const vecto
 				}
 			}
 		}
+		
+
 		//brightness fix
 		/*for (int m = -offset1; m < offset2; m++)
 		for (int n=-offset1;n<offset2;n++)

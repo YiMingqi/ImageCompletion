@@ -13,10 +13,13 @@ public:
 	StructurePropagation() {
 		ki = 0.75;
 		ks = 0.25;
+		//ki = 0.25;
+		//ks = 0.75;
 	}
 	~StructurePropagation(){}
 	void Run(const Mat1b &_mask, const Mat& _img, Mat1b &Linemask, vector<vector<Point>> &linePoints, Mat& result);
 	void StructurePropagation::TextureCompletion(const Mat1b &_mask, Mat1b &LineMask, const Mat &mat, Mat &result);
+	void StructurePropagation::TextureCompletion2(Mat1b _mask, Mat1b LineMask, const Mat &mat, Mat &result);
 	void SetParm(int _blocksize,int _samplestep,int _iscurve);
 
 private:
